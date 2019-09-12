@@ -1,0 +1,3 @@
+{:olt-login "xxx"
+ :olt-pass "xxx"
+ :database-url "mysql://localhost:3306/xxx?user=xxx&password=xxx&autoReconnect=true&useSSL=false&characterEncoding=utf8"}
