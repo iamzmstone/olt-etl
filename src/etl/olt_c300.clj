@@ -110,7 +110,7 @@
   "Send 'show pon power onu-rx' command and get optical rx power info"
   [session onu]
   (if (= "working" (:state onu))
-    (let [out (agent/cmd session (format "show pon power onu-rx %s-onu_1/%s:%s"
+    (let [out (agent/cmd session (format "show pon power onu-rx %s-onu_1/%s:%d"
                                          (:model onu) (:pon onu) (:oid onu)))]
       (parser/rx-map (str/split-lines out)))
     {:pon (:pon onu) :oid (:oid onu) :rx_power -100}))
@@ -121,7 +121,7 @@
   (let [s (agent/login (:ip olt) olt-login olt-pass)]
     (try
       (no-paging s)
-      (map #(onu-rx-power s %) onu-list)
+      (doall (map #(onu-rx-power s %) onu-list))
       (catch Exception ex
         (println (str "in olt-rx-power caught exception: " (.getMessage ex))))
       (finally (logout s)))))

@@ -17,7 +17,7 @@
     (if (= 9 (count cols))
       {:slot (read-string (get cols 2))
        :card_type (get cols 4)
-       :port_cnt (read-string (get cols 5))
+       :port_cnt (read-string (if (= "N/A" (get cols 5)) "0" (get cols 5)))
        :hard_ver (get cols 6)
        :soft_ver (get cols 7)
        :status (get cols 8)

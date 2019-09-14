@@ -4,10 +4,23 @@ INSERT INTO olts
 (name, ip, brand)
 VALUES (:name, :ip, :brand)
 
+-- :name upd-olt :! :n
+-- :doc update olt by id
+UPDATE olts
+   SET name = :name,
+       ip = :ip,
+       brand = :brand
+ WHERE id = :id
+
 -- :name all-olts :? :*
 -- :doc retrieve all olt records
 SELECT * FROM olts
 ORDER BY name
+
+-- :name get-olt :? :1
+-- :doc retrieve the otl by ip
+SELECT * FROM olts
+ WHERE ip = :ip
 
 -- :name add-card :i!
 -- :doc add a new card record

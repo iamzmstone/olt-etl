@@ -3,14 +3,24 @@
             [etl.db :as db]
             [mount.core :as mount]
             [clojure.string :as str]
+            [clojure.java.io :as io]
             [clj-time.core :as t]
+            [cprop.core :refer [load-config]]
             [clojure.tools.logging :as log]
             [etl.parse :as parser])
   (:gen-class))
 
+(def conf (load-config))
 
 (defn log-test []
   (log/info "log test ..."))
+
+(defn load-olts []
+  (with-open [f (io/reader (conf :olt-txt-file))]
+    (doseq [line (line-seq f)]
+      (if (> (count line) 5)
+        (if-let [[name ip] (str/split line #"\s+")]
+          (db/save-olt {:name name :ip ip :brand "ZTE"}))))))
 
 (defn etl-card-info []
   (let [olts (db/all-olts)]

@@ -23,9 +23,9 @@
    (let [s (telnet/get-telnet ip port)]
      (do
        (telnet/read-all s)
-       (telnet/write s (str user "\n"))
+       (telnet/write s (str user))
        (telnet/read-all s)
-       (telnet/write s (str pwd "\n"))
+       (telnet/write s (str pwd))
        {:session s :prompt (last (cs/split-lines (telnet/read-all s)))})))
   ([ip user pwd]
    (login ip 23 user pwd)))

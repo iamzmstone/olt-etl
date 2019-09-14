@@ -16,6 +16,12 @@
 
 (conman/bind-connection *db* "sql/queries.sql")
 
+(defn save-olt [olt]
+  "Add a new olt if not found, otherwise update it"
+  (if-let [olt-in-db (get-olt olt)]
+    (upd-olt (merge {:id (:id olt-in-db)} olt))
+    (add-olt olt)))
+
 (defn first-or-new-batch [name]
   (if-let [bat (get-batch-by-name {:name name})]
     (:id bat)
