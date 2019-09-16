@@ -78,6 +78,11 @@ INSERT INTO onus
 (olt_id, pon, oid, sn, type, auth, model)
 VALUES (:olt_id, :pon, :oid, :sn, :type, :auth, :model)
 
+-- :name get-onu-by-id :? :1
+-- :doc retrieve onu record by id
+SELECT * FROM onus
+ WHERE id = :id
+
 -- :name get-onu :? :1
 -- :doc retrieve onu record by pon and oid
 SELECT * FROM onus

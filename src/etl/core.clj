@@ -30,7 +30,7 @@
     (log/info "etl-card-info finished...")))
 
 (defn sn-info [olt]
-  (let [cards (c300/card-info olt)]
+  (let [cards (db/olt-cards {:olt_id (:id olt)})]
     (map #(merge {:olt_id (:id olt)} %) (parser/sn-list (c300/olt-sn olt cards)))))
 
 (defn etl-onus []
@@ -81,4 +81,6 @@
   (case (str/lower-case (first args))
     "card" (etl-card-info)
     "onu" (etl-onus)
-    "state" (etl-states (second args))))
+    "state" (etl-states (second args))
+    (println "Wrong argument..."))
+  (System/exit 0))

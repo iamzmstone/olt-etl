@@ -62,7 +62,7 @@
   (if-let [[- m intf] (re-find #"([g|e]pon)-olt_1/(\d+\/\d+)" (nth list 0))]
     {:pon intf :model m}))
 
-(defn- onu-sn
+(defn onu-sn
   [str]
   (if-let [[- oid type auth sn] (re-find #"onu (\d+) type (\S+) (sn|loid|mac) (\S+)" str)]
     {:oid oid :type type :auth auth :sn sn}))
@@ -123,5 +123,3 @@
         [onu rx] (str/split line #"\s+")]
     (if-let [[- pon oid] (re-find #"(\d+\/\d+):(\d+)" onu)]
       {:pon pon :oid oid :rx_power (if (= rx "N/A") "-100" (read-string rx))})))
-
-
