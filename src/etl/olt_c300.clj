@@ -77,7 +77,6 @@
   "call card-sn for each card on a given olt, and combine the output to get
   all sn output of the olt"
   [olt cards]
-  (log/info (format "olt-sn for olt [%s][%s]" (:name olt) (:ip olt)))
   (let [s (agent/login (:ip olt) olt-login olt-pass)]
     (try
       (no-paging s)
@@ -87,7 +86,8 @@
       (catch Exception ex
         (println (str "caught exception: " (.getMessage ex)))
         (log/error (format "caught exception in olt-sn for olt [%s][%s]: %s"
-                           (:name olt) (:ip olt) (.getMessage ex))))
+                           (:name olt) (:ip olt) (.getMessage ex)))
+        nil)
       (finally (logout s)))))
 
 (defn pon-state
@@ -103,7 +103,6 @@
 (defn olt-state
   "call pon-state for each pon port for a given olt, and combine all outputs"
   [olt pon-ports]
-  (log/info (format "olt-state for olt [%s][%s]" (:name olt) (:ip olt)))
   (let [s (agent/login (:ip olt) olt-login olt-pass)]
     (try
       (no-paging s)
@@ -111,7 +110,7 @@
                 (map #(pon-state s (:pon %) (:model %)) pon-ports))
       (catch Exception ex
         (println (str "in olt-state caught exception: " (.getMessage ex)))
-        (log/error (format "caught exception in olt-sn for olt [%s][%s]: %s"
+        (log/error (format "caught exception in olt-state for olt [%s][%s]: %s"
                            (:name olt) (:ip olt) (.getMessage ex))))
       (finally (logout s)))))
 
@@ -127,14 +126,13 @@
 (defn olt-rx-power
   "Call onu-rx-power for each onu of onu list, and combine the outputs"
   [olt onu-list]
-  (log/info (format "olt-rx-power for olt [%s][%s]" (:name olt) (:ip olt)))
   (let [s (agent/login (:ip olt) olt-login olt-pass)]
     (try
       (no-paging s)
       (doall (map #(onu-rx-power s %) onu-list))
       (catch Exception ex
         (println (str "in olt-rx-power caught exception: " (.getMessage ex)))
-        (log/info (format "caught exception in olt-rx-power for olt [%s][%s]: %s"
+        (log/error (format "caught exception in olt-rx-power for olt [%s][%s]: %s"
                           (:name olt) (:ip olt) (.getMessage ex))))
       (finally (logout s)))))
 
@@ -151,7 +149,6 @@
 (defn olt-onu-traffic
   "Call onu-traffic for each onu of onu list, and combine the outputs"
   [olt onu-list]
-  (log/info (format "olt-onu-traffic for olt [%s][%s]" (:name olt) (:ip olt)))
   (let [s (agent/login (:ip olt) olt-login olt-pass)]
     (try
       (no-paging s)
@@ -159,7 +156,7 @@
        (map #(merge (select-keys % [:pon :oid]) (onu-traffic s %)) onu-list))
       (catch Exception ex
         (println (str "in olt-onu-traffic caught exception: " (.getMessage ex)))
-        (log/info (format "caught exception in olt-onu-traffic for olt [%s][%s]: %s"
+        (log/error (format "caught exception in olt-onu-traffic for olt [%s][%s]: %s"
                           (:name olt) (:ip olt) (.getMessage ex))))
       (finally (logout s)))))
 
