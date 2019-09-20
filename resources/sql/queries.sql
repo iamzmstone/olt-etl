@@ -22,6 +22,11 @@ ORDER BY name
 SELECT * FROM olts
  WHERE ip = :ip
 
+-- :name get-olt-by-id :? :1
+-- :doc get the olt by id
+SELECT * FROM olts
+ WHERE id = :id
+
 -- :name add-card :i!
 -- :doc add a new card record
 INSERT INTO cards
@@ -71,6 +76,10 @@ UPDATE batches
    SET end_time = :end_time,
        finished = :finished
  WHERE id = :batch_id
+
+-- :name all-onus :? :*
+-- :doc retrieve all onus
+SELECT * FROM onus
 
 -- :name add-onu :i!
 -- :doc add a new onu record

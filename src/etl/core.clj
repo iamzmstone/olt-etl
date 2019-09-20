@@ -114,6 +114,18 @@
     (db/upd-batch {:batch_id batch_id :end_time (t/now) :finished true})
     (log/info (format "etl-states for batch [%s] finished..." batch-name))))
 
+(defn latest-states
+  "Get the latest states of onus given"
+  [onus]
+  (log/info (format "latest-states for onus[%d] start..." (count onus)))
+  (let [olt-onus (partition-by :olt_id onus)
+        olts (map #(db/get-olt-by-id {:id (:olt_id (first %))}) olt-onus)]
+    (flatten (pmap c300/latest-states olts olt-onus))))
+
+(defn mytest []
+  (let [onus (random-sample 0.01 (etl.db/all-onus))]
+    (latest-states onus)))
+  
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]

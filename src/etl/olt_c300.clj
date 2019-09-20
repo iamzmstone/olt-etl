@@ -160,6 +160,7 @@
                           (:name olt) (:ip olt) (.getMessage ex))))
       (finally (logout s)))))
 
+;;; code for get onu configuration
 (defn onu-cmds [onu]
   "Get a list of olt commands for a given onu"
   (let [m (:model onu)
@@ -212,3 +213,49 @@
   (let [conf (onu-config olt onu)
         new (state-new onu conf)]
     {:state (dissoc new :upd_time) :conf conf}))
+
+
+;;; code for get latest state information for given onus list
+(defn get-state
+  "Get the state map from states via pon and oid given"
+  [states pon oid]
+  (first (filter #(and (= pon (:pon %)) (= oid (:oid %))) states)))
+
+(defn states-for-onus
+  "Get latest states for given onus"
+  [session onus]
+  (let [pon-ports (distinct (map #(select-keys % [:pon :model]) onus))
+        state-out (str/join "=====\n"
+                            (map #(pon-state session (:pon %) (:model %)) pon-ports))
+        states (parser/onu-state-list state-out)]
+    (map #(merge {:onu_id (:id %)} (get-state states (:pon %) (:oid %))) onus)))
+
+(defn rx-for-onus
+  "Get latest rx power list for given onus"
+  [session onus]
+  (doall (map #(onu-rx-power session %)
+              onus)))
+
+(defn trfc-for-onus
+  "Get latest traffic list for given onus"
+  [session onus]
+  (doall (map #(onu-traffic session %)
+              onus)))
+
+(defn latest-states
+  "Get latest state maps for given olt and onus"
+  [olt onus]
+  (log/info (format "Processing latest-states on [%s][%s], onu count: [%d]"
+                    (:name olt) (:ip olt) (count onus)))
+  (let [s (agent/login (:ip olt) olt-login olt-pass)]
+    (try
+      (no-paging s)
+      (let [states (states-for-onus s onus)
+            rxs (rx-for-onus s states)
+            trfcs (trfc-for-onus s states)]
+        (map merge states rxs trfcs))
+      (catch Exception ex
+        (println (format "in latest-states caught exception: %s" (.getMessage ex)))
+        (log/error (format "caught exception in olt-sn for olt [%s][%s]: %s"
+                           (:name olt) (:ip olt)  (.getMessage ex))))
+      (finally (logout s)))))
