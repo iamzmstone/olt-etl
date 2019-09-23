@@ -25,7 +25,7 @@
 (defn etl-card-info []
   (let [olts (db/all-olts)]
     (log/info "etl-card-info start...")
-    (doseq [card (flatten (pmap c300/card-info olts))]
+    (doseq [card (remove nil? (flatten (pmap c300/card-info olts)))]
       (db/save-card card))
     (log/info "etl-card-info finished...")))
 
@@ -46,7 +46,7 @@
 (defn etl-onus []
   (let [olts (db/all-olts)]
     (log/info "etl-onus start...")
-    (doseq [onu (flatten (pmap sn-info olts))]
+    (doseq [onu (remove nil? (flatten (pmap sn-info olts)))]
       (db/save-onu onu))
     (log/info "etl-onus finished...")))
 

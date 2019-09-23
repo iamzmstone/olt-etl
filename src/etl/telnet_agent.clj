@@ -1,6 +1,7 @@
 (ns etl.telnet-agent
   (:require [clj-telnet.core :as telnet]
-            [clojure.string :as cs]))
+            [clojure.string :as cs])
+  (:import [java.net InetAddress]))
 
 (def ends [\# \> \] \)])
 
@@ -20,13 +21,14 @@
   "Telnet to ip:port and login with user:pwd, return client
   object with session and prompt"
   ([ip port user pwd]
-   (let [s (telnet/get-telnet ip port)]
-     (do
-       (telnet/read-all s)
-       (telnet/write s (str user))
-       (telnet/read-all s)
-       (telnet/write s (str pwd))
-       {:session s :prompt (last (cs/split-lines (telnet/read-all s)))})))
+   (if (.isReachable (InetAddress/getByName ip) 100)
+     (let [s (telnet/get-telnet ip port)]
+       (do
+         (telnet/read-all s)
+         (telnet/write s (str user))
+         (telnet/read-all s)
+         (telnet/write s (str pwd))
+         {:session s :prompt (last (cs/split-lines (telnet/read-all s)))}))))
   ([ip user pwd]
    (login ip 23 user pwd)))
 
