@@ -1,8 +1,8 @@
 -- :name add-olt :i!
 -- :doc add a new olt record
 INSERT INTO olts
-(name, ip, brand)
-VALUES (:name, :ip, :brand)
+(name, ip, brand, dev_code, machine_room, category)
+VALUES (:name, :ip, :brand, :dev_code, :machine_room, :category)
 
 -- :name upd-olt :! :n
 -- :doc update olt by id
@@ -66,6 +66,13 @@ VALUES (:name, :start_time)
 SELECT * FROM batches
 WHERE name = :name
 
+-- :name latest-batch :? :1
+-- :doc retrieve latest batch done
+SELECT * FROM batches
+ WHERE finished = true
+ ORDER BY id DESC
+ LIMIT 1
+ 
 -- :name all-batches :? :*
 -- :doc retrieve all batch records
 SELECT * FROM batches
@@ -135,4 +142,21 @@ UPDATE onu_states
        rx_power = :rx_power,
        state = :state
  WHERE id = :id
-       
+
+-- :name olt-without-onus :? :*
+-- :doc retrieve olts has no onus
+SELECT a.*
+  FROM olts a
+ WHERE NOT EXISTS (SELECT 1 FROM onus b
+                    WHERE a.id = b.olt_id)
+
+-- :name olt-without-states :? :*
+-- :doc retrieve olts has no states for a given batch
+SELECT a.*
+  FROM olts a
+ WHERE NOT EXISTS (SELECT 1 FROM onus b, onu_states c
+                   WHERE a.id = b.olt_id
+		   AND b.id = c.onu_id
+		   AND c.batch_id = :batch_id)
+		   
+

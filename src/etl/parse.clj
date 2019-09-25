@@ -1,5 +1,14 @@
 (ns etl.parse
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [cprop.core :refer [load-config]]))
+
+(def conf (load-config))
+
+(defn- stateof
+  "Get the state of given state according to state mapping rules"
+  [s]
+  (let [m (:state-mapping conf)]
+    (or (m s) s)))
 
 ;;; functions for parsing card part
 (defn card-model
@@ -8,6 +17,7 @@
   (cond
     (re-find #"GTG" type) "GPON"
     (re-find #"ETG" type) "EPON"
+    (re-find #"ETTO" type) "EPON"
     :else nil))
 
 (defn parse-card
@@ -46,7 +56,7 @@
       ;;(println "debug:" onu-str state)
       (if m
         {:pon (get m 1) :oid (read-string (get m 2))
-         :model (:m state) :state (:s state)}))))
+         :model (:m state) :state (stateof (:s state))}))))
 
 (defn onu-state-list
   "Get a list of state map from output of onu-status"

@@ -17,11 +17,14 @@
 (defn login
   "Telnet login olt and return session"
   ([ip port user pwd]
-   (if-let [s (agent/login ip port user pwd)]
-     (do
-       (no-paging s)
-       s)
-     (log/error (format "IP addess: [%s] is not reachable" ip))))
+   (let [s (agent/login ip port user pwd)]
+     (if s
+       (do
+         (no-paging s)
+         s)
+       (if (nil? s)
+         (log/error (format "IP addess: [%s] is not reachable" ip))
+         (log/error (format "Login failed at: [%s][%s][%s]" ip user pwd))))))
   ([ip user pwd]
    (login ip 23 user pwd)))
 
@@ -56,8 +59,9 @@
 
 (defn running-config
   "Get output of command 'show run' for a given olt"
-  [ip user pwd]
-  (cmd ip user pwd "show run"))
+  [olt]
+  (log/info (format "running-config for olt [%s:%s]" (:name olt) (:ip olt)))
+  (cmd (:ip olt) olt-login olt-pass "show run"))
 
 (defn pon-onu-sn
   "Send 'show run int [g|e]pon-olt_1/$pon' command and get onu sn on a given pon port"

@@ -1,6 +1,7 @@
 (ns etl.core
   (:require [etl.olt-c300 :as c300]
             [etl.db :as db]
+            [etl.telnet-agent :as telnet]
             [mount.core :as mount]
             [clojure.string :as str]
             [clojure.java.io :as io]
@@ -11,9 +12,26 @@
   (:gen-class))
 
 (def conf (load-config))
+(def cores (.. Runtime getRuntime availableProcessors))
+(def conf-path (:conf-path conf))
 
 (defn log-test []
   (log/info "log test ..."))
+
+(defn olts-ok? []
+  (let [olts (db/all-olts)]
+    (doseq [olt olts]
+      (if (not (telnet/reachable? (:ip olt)))
+        (println (format "OLT is not reachable: [%s][%s]" (:name olt) (:ip olt)))))))
+
+(defn olts-login-ok? []
+  (let [olts (db/all-olts)]
+    (doseq [olt olts]
+      (println (:name olt) ":" (:ip olt))
+      (let [s (c300/login (:ip olt) (:olt-login conf) (:olt-pass conf))]
+        (if s
+          (c300/logout s)
+          (println (format "OLT login failed: [%s][%s]" (:name olt) (:ip olt))))))))
 
 (defn load-olts []
   (with-open [f (io/reader (conf :olt-txt-file))]
@@ -22,6 +40,40 @@
         (if-let [[name ip] (str/split line #"\s+")]
           (db/save-olt {:name name :ip ip :brand "ZTE"}))))))
 
+(defn load-tele-olts []
+  (with-open [f (io/reader "/Users/zengm/test/telecom-olt.txt")]
+    (doseq [line (line-seq f)]
+      (if (> (count line) 5)
+        (if-let [[name code room category brand ip] (str/split line #"\t")]
+          (db/save-olt {:name name :ip ip :brand brand
+                        :dev_code code :machine_room room :category category}))))))
+
+(defn save-olt-conf
+  "Save olt running config to file"
+  [olt]
+  (let [content (c300/running-config olt)]
+    (with-open [f (io/writer (str conf-path (:ip olt) ".cfg"))]
+      (.write f content))))
+
+(defn dump-confs
+  "Dump all olt's running config to local files"
+  []
+  (log/info "dump-confs start...")
+  (doseq [olt (db/all-olts)]
+    (future
+      (save-olt-conf olt)
+      (log/info (format "dump-confs finished...[%s][%s]" (:name olt) (:ip olt))))))
+
+(defn etl-card-info2 []
+  (log/info "etl-card-info start...")
+  (let [olts (db/all-olts)]
+    (let [runs (for [olt olts]
+                 (future (c300/card-info olt)))]
+      (let [cards (remove nil? (flatten (map deref runs)))]
+        (doseq [card cards]
+          (db/save-card card)))))
+  (log/info "etl-card-info finished..."))
+    
 (defn etl-card-info []
   (let [olts (db/all-olts)]
     (log/info "etl-card-info start...")
@@ -43,12 +95,26 @@
   ([olt]
    (sn-info olt 3)))
 
-(defn etl-onus []
-  (let [olts (db/all-olts)]
+(defn- etl-onus-for-olts
+  "Run etl onus for given olt list"
+  [olts]
+  (let [part-num (+ cores 2)]
     (log/info "etl-onus start...")
-    (doseq [onu (remove nil? (flatten (pmap sn-info olts)))]
-      (db/save-onu onu))
-    (log/info "etl-onus finished...")))
+    (doseq [[i olt-parts] (map-indexed vector (partition-all part-num olts))]
+      (future
+        (doseq [onu (remove nil? (flatten (pmap sn-info olt-parts)))]
+          (db/save-onu onu))
+        (log/info (format "etl-onus finished at [%d]..." i))))))
+
+(defn etl-onus
+  "Run etl for all olts"
+  []
+  (etl-onus-for-olts (db/all-olts)))
+
+(defn etl-onus-left
+  "Run etl for olts without any onus"
+  []
+  (etl-onus-for-olts (db/olt-without-onus)))
 
 (defn merge-onu-id [olt onus state]
   (let [onu (first (filter #(and
@@ -56,7 +122,7 @@
                              (= (:pon state) (:pon %))
                              (= (:oid state) (:oid %)))
                            onus))]
-    (merge {:onu_id (:id onu)} state)))
+    (merge {:olt (:name olt) :onu_id (:id onu)} state)))
 
 (defn state-info
   ([olt retry]
@@ -102,17 +168,33 @@
   (let [onus (state-info olt)]
     (map merge onus (rx-power-info olt onus) (traffic-info olt onus))))
 
-(defn etl-states [batch-name]
-  (let [olts (db/all-olts)
-        batch_id (db/first-or-new-batch batch-name)]
+(defn- etl-states-for-olts [olts batch-name]
+  "Run etl states for a given olts list and a batch name"
+  (let [batch_id (db/first-or-new-batch batch-name)
+        part-num (+ cores 2)]
     (log/info (format "etl-states for batch [%s] start..." batch-name))
-    (doseq [s (map #(merge {:batch_id batch_id} %)
-                   (flatten (pmap all-state olts)))]
-      (if (:onu_id s)
-        (db/save-state s)
-        (log/warn "state without onu_id" s)))
-    (db/upd-batch {:batch_id batch_id :end_time (t/now) :finished true})
-    (log/info (format "etl-states for batch [%s] finished..." batch-name))))
+    (doseq [[i olt-parts] (map-indexed vector (partition-all part-num olts))]
+      (future
+        (doseq [s (map #(merge {:batch_id batch_id} %)
+                       (flatten (pmap all-state olt-parts)))]
+          (if (:onu_id s)
+            (db/save-state s)
+            (log/warn "state without onu_id" s)))
+        (log/info (format "etl-states for batch [%s] finished at [%d]..."
+                          batch-name i))
+        (db/upd-batch {:batch_id batch_id :end_time (t/now) :finished true})))))
+
+(defn etl-states
+  "Run etl states for all olts"
+  [batch-name]
+  (etl-states-for-olts (db/all-olts) batch-name))
+
+(defn etl-states-left
+  "Run etl states for olts without states for given batch-name"
+  [batch-name]
+  (let [olts (db/olt-without-states
+              {:batch_id (db/first-or-new-batch batch-name)})]
+    (etl-states-for-olts olts batch-name)))
 
 (defn latest-states
   "Get the latest states of onus given"
@@ -133,6 +215,9 @@
   (case (str/lower-case (first args))
     "card" (etl-card-info)
     "onu" (etl-onus)
+    "onu-left" (etl-onus-left)
     "state" (etl-states (second args))
-    (println "Wrong argument..."))
-  (System/exit 0))
+    "state-left" (etl-states-left (second args))
+    "reachable" (olts-ok?)
+    "loginable" (olts-login-ok?)
+    (println "Wrong argument...")))

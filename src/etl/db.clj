@@ -28,7 +28,7 @@
     (:generated_key (add-batch {:name name :start_time (java.util.Date.)}))))
 
 (defn- keys-card [card]
-  (select-keys card [:port_cnt :card_type :port_cnt :status]))
+  (select-keys card [:port_cnt :card_type :port_cnt :model :status]))
 
 (defn save-card [card]
   "Add a new card if it doesn't exist in db, otherwise if it is changed, update

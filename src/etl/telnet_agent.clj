@@ -17,18 +17,24 @@
    (into [prompt]
          (map #(repl-last-char prompt %) ends))))
 
+(defn reachable? [ip]
+  (.isReachable (InetAddress/getByName ip) 5000))
+
 (defn login
   "Telnet to ip:port and login with user:pwd, return client
   object with session and prompt"
   ([ip port user pwd]
-   (if (.isReachable (InetAddress/getByName ip) 100)
+   (if (reachable? ip)
      (let [s (telnet/get-telnet ip port)]
        (do
          (telnet/read-all s)
          (telnet/write s (str user))
          (telnet/read-all s)
          (telnet/write s (str pwd))
-         {:session s :prompt (last (cs/split-lines (telnet/read-all s)))}))))
+         (let [prompt (last (cs/split-lines (telnet/read-all s)))]
+           (if (some #(= prompt %) ["Username:" "Password:"])
+             false    ;;; login failed
+             {:session s :prompt prompt}))))))
   ([ip user pwd]
    (login ip 23 user pwd)))
 
@@ -51,7 +57,7 @@
      (do
        (telnet/write (:session client) command)
        (let [rst (telnet/read-until-or
-                  (:session client) prompts 180000)]
+                  (:session client) prompts 300000)]
          (if (some (partial cs/ends-with? rst) prompts)
            {:status true :result rst}
            {:status false :result rst})))))
