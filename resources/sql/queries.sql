@@ -123,8 +123,8 @@ SELECT * from onus
 -- :name add-state :i!
 -- :doc add a new onu_state record
 INSERT INTO onu_states
-(onu_id, batch_id, state, rx_power, in_Bps, out_Bps, in_bw, out_bw)
-VALUES (:onu_id, :batch_id, :state, :rx_power, :in_Bps, :out_Bps, :in_bw, :out_bw)
+(onu_id, batch_id, state, rx_power, in_bps, out_bps, in_bw, out_bw)
+VALUES (:onu_id, :batch_id, :state, :rx_power, :in_bps, :out_bps, :in_bw, :out_bw)
 
 -- :name get-state :? :1
 -- :doc retrieve state according to batch_id and onu_id
@@ -137,8 +137,8 @@ SELECT * from onu_states
 UPDATE onu_states
    SET in_bw = :in_bw,
        out_bw = :out_bw,
-       in_bps = :in_Bps,
-       out_bps = :out_Bps,
+       in_bps = :in_bps,
+       out_bps = :out_bps,
        rx_power = :rx_power,
        state = :state
  WHERE id = :id

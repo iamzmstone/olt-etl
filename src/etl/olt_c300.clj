@@ -146,7 +146,7 @@
      (str/split-lines
       (agent/cmd session (format "show int %s-onu_1/%s:%s"
                                  (:model onu) (:pon onu) (:oid onu)))))
-    {:in_Bps 0 :out_Bps 0 :in_bw 0 :out_bw 0}))
+    {:in_bps 0 :out_bps 0 :in_bw 0 :out_bw 0}))
 
 (defn olt-onu-traffic
   "Call onu-traffic for each onu of onu list, and combine the outputs"

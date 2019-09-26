@@ -113,17 +113,17 @@
 (defn- traffic-line
   [line]
   (if-let [[- in] (re-find #"Input rate :\s+(\d+) Bps" line)]
-    {:in_Bps (read-string in)}
+    {:in_bps (read-string in)}
     (if-let [[- out] (re-find #"Output rate:\s+(\d+) Bps" line)]
-      {:out_Bps (read-string out)}
-      (if-let [[- in-bw] (re-find #"Input bandwidth throughput :(\S+)" line)]
+      {:out_bps (read-string out)}
+      (if-let [[- - in-bw] (re-find #"Input bandwidth (throughput|thoughput) :(\S+)" line)]
         {:in_bw (if (= "N/A" in-bw) 0 (read-string in-bw))}
-        (if-let [[- out-bw] (re-find #"Output bandwidth throughput:\s*(\S+)" line)]
+        (if-let [[- out-bw] (re-find #"Output bandwidth (throughput|thoughput):\s*(\S+)" line)]
           {:out_bw (if (= "N/A" out-bw) 0 (read-string out-bw))})))))
 
 (defn traffic-map
   [list]
-  (reduce merge {:in_Bps 0 :out_Bps 0 :in_bw 0 :out_bw 0}
+  (reduce merge {:in_bps 0 :out_bps 0 :in_bw 0 :out_bw 0}
           (map traffic-line list)))
 
 (defn rx-map
