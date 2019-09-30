@@ -118,7 +118,7 @@
       {:out_bps (read-string out)}
       (if-let [[- - in-bw] (re-find #"Input bandwidth (throughput|thoughput) :(\S+)" line)]
         {:in_bw (if (= "N/A" in-bw) 0 (read-string in-bw))}
-        (if-let [[- out-bw] (re-find #"Output bandwidth (throughput|thoughput):\s*(\S+)" line)]
+        (if-let [[- - out-bw] (re-find #"Output bandwidth (throughput|thoughput):\s*(\S+)" line)]
           {:out_bw (if (= "N/A" out-bw) 0 (read-string out-bw))})))))
 
 (defn traffic-map
