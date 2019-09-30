@@ -9,6 +9,12 @@
 (def olt-login (:olt-login conf))
 (def olt-pass (:olt-pass conf))
 
+(defn gbk-str
+  "decode gbk encoding string"
+  [s]
+  (if s
+    (String. (.getBytes s "iso8859-1") "gbk")))
+
 (defn no-paging
   "Send 'terminal length 0' command to make output no-paging"
   [session]
@@ -161,7 +167,30 @@
                           (:name olt) (:ip olt) (.getMessage ex))))
       (finally (logout s)))))
 
-;;; code for get onu configuration
+;;; code for getting description/name of onus
+(defn onu-name
+  "Get the description/name from output of onu config for a given onu"
+  [session onu]
+  (let [m (:model onu)
+        pon (:pon onu)
+        oid (:oid onu)
+        cmd (format "show run int %s-onu_1/%s:%d" m pon oid)]
+    {:id (:id onu) :name (gbk-str (parser/onu-name (agent/cmd session cmd) m))}))
+
+(defn olt-onu-name
+  "Call onu-name for each onu of onu list and output onu-name list"
+  [olt onus]
+  (if-let [s (login (:ip olt) olt-login olt-pass)]
+    (try
+      (doall
+       (map #(onu-name s %) onus))
+      (catch Exception ex
+        (println (str "in olt-onu-name caught exception: " (.printStackTrace ex)))
+        (log/error (format "caught exception in olt-onu-name for olt [%s][%s]: %s"
+                           (:name olt) (:ip olt) (.getMessage ex))))
+      (finally (logout s)))))
+
+;;; code for onu configuration
 (defn onu-cmds [onu]
   "Get a list of olt commands for a given onu"
   (let [m (:model onu)
@@ -185,7 +214,7 @@
     (try
       (doall
        (zipmap (keys cmds)
-               (map #(hash-map :cmd % :out (agent/cmd s %)) (vals cmds))))
+               (map #(hash-map :cmd % :out (gbk-str (agent/cmd s %))) (vals cmds))))
       (catch Exception ex
         (println (format "caught exception in onu-config [%s][%s:%d] : %s"
                          (:name olt) (:pon onu) (:oid onu) (.getMessage ex))))

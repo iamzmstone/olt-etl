@@ -133,3 +133,18 @@
         [onu rx] (str/split line #"\s+")]
     (if-let [[- pon oid] (re-find #"(\d+\/\d+):(\d+)" onu)]
       {:pon pon :oid oid :rx_power (if (= rx "N/A") "-100" (read-string rx))})))
+
+;;; property description $$%s$$
+;;; name %s
+(defn onu-name
+  "Parse config of onu and extract name/description of onu"
+  [onu-cfg-section model]
+  (if-let [name-line
+        (first (filter #(re-find #"^\s*(property description|name)" %)
+                       (str/split-lines onu-cfg-section)))]
+    (cond
+      (= model "epon") (second (re-find #"\$\$(.+)\$\$" name-line))
+      (= model "gpon") (second (re-find #"name (.+)" name-line)))
+    "No-Name"))
+                          
+  

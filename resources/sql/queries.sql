@@ -88,6 +88,16 @@ UPDATE batches
 -- :doc retrieve all onus
 SELECT * FROM onus
 
+-- :name onus-without-name :? :*
+-- :doc retrieve onus without name
+SELECT * FROM onus
+ WHERE name is null
+
+-- :name olt-onus :? :*
+-- :doc retrieve onus by olt_id
+SELECT * FROM onus
+ WHERE olt_id = :olt_id
+
 -- :name add-onu :i!
 -- :doc add a new onu record
 INSERT INTO onus
@@ -113,6 +123,12 @@ UPDATE onus
        type = :type,
        auth = :auth,
        model = :model
+ WHERE id = :id
+
+-- :name upd-onu-name :! :n
+-- :doc update onu name according to onu id
+UPDATE onus
+   SET name = :name
  WHERE id = :id
 
 -- :name olt-onus :? :*

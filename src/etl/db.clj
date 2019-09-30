@@ -30,9 +30,10 @@
 (defn- keys-card [card]
   (select-keys card [:port_cnt :card_type :port_cnt :model :status]))
 
-(defn save-card [card]
-  "Add a new card if it doesn't exist in db, otherwise if it is changed, update
-it in db"
+(defn save-card
+  "Add a new card if it doesn't exist in db, otherwise if it is changed,
+ updateit in db"
+  [card]
   (if-let [card-in-db (get-card card)]
     (if (not (= (keys-card card) (keys-card card-in-db)))
       (upd-card (merge {:id (:id card-in-db)} card)))
@@ -41,18 +42,26 @@ it in db"
 (defn- keys-onu [onu]
   (select-keys onu [:sn :type :auth]))
 
-(defn save-onu [onu]
+(defn save-onu
   "Add a new onu if it doesn't exist in db, otherwise update it in db if it diff"
+  [onu]
   (if-let [onu-in-db (get-onu onu)]
     (if (not (= (keys-onu onu) (keys-onu onu-in-db)))
       (upd-onu (merge {:id (:id onu-in-db)} onu)))
     (add-onu onu)))
 
-(defn save-state [state]
+(defn save-state
   "Add a new state if it doesn't exist in db, otherwise update it"
+  [state]
   (if-let [state-in-db (get-state state)]
     (upd-state (merge {:id (:id state-in-db)} state))
     (add-state state)))
+
+(defn batch-upd-onu-name
+  "Update onu name for onus given"
+  [onus]
+  (doseq [o onus]
+    (upd-onu-name o)))
 
 (extend-protocol jdbc/IResultSetReadColumn
   java.sql.Timestamp

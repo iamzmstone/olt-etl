@@ -69,11 +69,11 @@
   (let [olts (db/all-olts)]
     (let [runs (for [olt olts]
                  (future (c300/card-info olt)))]
-      (let [cards (remove nil? (flatten (map deref runs)))]
+      (let [cards (remove nil? (flatten (doall (map deref runs))))]
         (doseq [card cards]
           (db/save-card card)))))
   (log/info "etl-card-info finished..."))
-    
+
 (defn etl-card-info []
   (let [olts (db/all-olts)]
     (log/info "etl-card-info start...")
@@ -200,14 +200,31 @@
   "Get the latest states of onus given"
   [onus]
   (log/info (format "latest-states for onus[%d] start..." (count onus)))
-  (let [olt-onus (partition-by :olt_id onus)
-        olts (map #(db/get-olt-by-id {:id (:olt_id (first %))}) olt-onus)]
-    (flatten (pmap c300/latest-states olts olt-onus))))
+  (let [olt-onus (group-by :olt_id onus)
+        olts (map #(db/get-olt-by-id {:id %}) (keys olt-onus))]
+    (flatten (pmap c300/latest-states olts (vals olt-onus)))))
 
-(defn mytest []
+(defn etl-onu-names
+  "Update onus' name for onus given"
+  [onus]
+  (let [olt-onus (group-by :olt_id onus)]
+    (doseq [[olt_id onus] olt-onus]
+      (let [olt (db/get-olt-by-id {:id olt_id})]
+        (log/info (format "etl-onu-names for olt: [%s][%s][%d] start..."
+                          (:name olt) (:ip olt) (count onus)))
+        (future
+          (db/batch-upd-onu-name (c300/olt-onu-name olt onus))
+          (log/info (format "etl-onu-names for olt: [%s][%s] done..."
+                            (:name olt) (:ip olt))))))))
+
+(defn ls-test []
   (let [onus (random-sample 0.01 (etl.db/all-onus))]
     (latest-states onus)))
-  
+
+(defn etl-onu-without-name []
+  (let [onus (db/onus-without-name)]
+    (etl-onu-names onus)))
+
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
@@ -216,6 +233,7 @@
     "card" (etl-card-info)
     "onu" (etl-onus)
     "onu-left" (etl-onus-left)
+    "onu-name" (etl-onu-without-name)
     "state" (etl-states (second args))
     "state-left" (etl-states-left (second args))
     "reachable" (olts-ok?)
