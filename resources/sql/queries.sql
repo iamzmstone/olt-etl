@@ -44,6 +44,10 @@ SELECT * from cards
 SELECT * FROM cards
  WHERE olt_id = :olt_id
 
+-- :name all-cards :? :*
+-- :doc retrieve all cards
+SELECT * FROM cards
+
 -- :name upd-card :! :n
 -- :doc update card information by id
 UPDATE cards
@@ -53,6 +57,24 @@ UPDATE cards
        hard_ver = :hard_ver,
        soft_ver = :soft_ver,
        status = :status
+ WHERE id = :id
+
+-- :name add-pon-desc :i!
+-- :doc add a new pon desc record
+INSERT INTO pon_desc
+(olt_id, pon)
+VALUES (:olt_id, :pon)
+
+-- :name get-pon-desc :? :1
+-- :doc retrieve the pon_desc record by olt_id and pon
+SELECT * from pon_desc
+ WHERE olt_id = :olt_id
+   AND pon = :pon
+
+-- :name upd-pon-desc :! :n
+-- :doc update pon desc record by id
+UPDATE pon_desc
+   SET name = :name
  WHERE id = :id
 
 -- :name add-batch :i!

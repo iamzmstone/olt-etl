@@ -4,6 +4,12 @@
 
 (def conf (load-config))
 
+(defn gbk-str
+  "decode gbk encoding string"
+  [s]
+  (if s
+    (String. (.getBytes s "iso8859-1") "gbk")))
+
 (defn- stateof
   "Get the state of given state according to state mapping rules"
   [s]
@@ -72,6 +78,11 @@
   (if-let [[- m intf] (re-find #"([g|e]pon)-olt_1/(\d+\/\d+)" (nth list 0))]
     {:pon intf :model m}))
 
+(defn- pon-intf-line
+  [line]
+  (if-let [[- m intf] (re-find #"([g|e]pon)-olt_1/(\d+\/\d+)" line)]
+    {:pon intf :model m}))
+
 (defn onu-sn
   [str]
   (if-let [[- oid type auth sn] (re-find #"onu (\d+) type (\S+) (sn|loid|mac) (\S+)" str)]
@@ -103,6 +114,21 @@
         intfs (map pon-intf (take-nth 2 sns))
         onus (map onu-sns (take-nth 2 (rest sns)))]
     (flatten (reduce conj [] (map combine-sn intfs onus)))))
+
+(defn- desc-info
+  [list]
+  {:name (gbk-str (last (re-find #"(name|description) (.*)" (first list))))})
+
+(defn pon-desc-list
+  "Get a list of pon description map from sn cmds output string"
+  [sn-cmd-out]
+  (let [desc-lines (filter #(re-find #"(^interface|^\s*description|^\s*name)" %)
+                         (str/split-lines sn-cmd-out))
+        part-desc (partition-by #(re-find #"^interface" %)
+                                (remove-intf-without-onu desc-lines))
+        intfs (map pon-intf (take-nth 2 part-desc))
+        descs (map desc-info (take-nth 2 (rest part-desc)))]
+    (reduce conj [] (map merge intfs descs))))
 
 (defn- onu-intf
   [list]

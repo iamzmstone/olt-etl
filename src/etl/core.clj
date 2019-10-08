@@ -88,7 +88,8 @@
      (let [cards (db/olt-cards {:olt_id (:id olt)})
            sn-out (c300/olt-sn olt cards)]
        (if sn-out
-         (map #(merge {:olt_id (:id olt)} %) (parser/sn-list sn-out))
+         {:sns (map #(merge {:olt_id (:id olt)} %) (parser/sn-list sn-out))
+          :pon-descs (map #(merge {:olt_id (:id olt)} %) (parser/pon-desc-list sn-out))}
          (recur olt (dec retry))))
      (log/error (format "Failed after retry in sn-info [%s][%s]"
                         (:name olt) (:ip olt)))))
@@ -102,8 +103,11 @@
     (log/info "etl-onus start...")
     (doseq [[i olt-parts] (map-indexed vector (partition-all part-num olts))]
       (future
-        (doseq [onu (remove nil? (flatten (pmap sn-info olt-parts)))]
-          (db/save-onu onu))
+        (let [sn-maps (pmap sn-info olt-parts)]
+          (doseq [onu (remove nil? (flatten (map :sns sn-maps)))]
+            (db/save-onu onu))
+          (doseq [pon-desc (remove nil? (flatten (map :pon-descs sn-maps)))]
+            (db/upd-the-pon-desc pon-desc)))
         (log/info (format "etl-onus finished at [%d]..." i))))))
 
 (defn etl-onus
@@ -231,6 +235,7 @@
   (mount/start)
   (case (str/lower-case (first args))
     "card" (etl-card-info)
+    "pon-desc" (db/batch-init-pon-desc)
     "onu" (etl-onus)
     "onu-left" (etl-onus-left)
     "onu-name" (etl-onu-without-name)

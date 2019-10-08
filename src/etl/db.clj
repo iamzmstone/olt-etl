@@ -39,6 +39,28 @@
       (upd-card (merge {:id (:id card-in-db)} card)))
     (add-card card)))
 
+(defn new-pon-desc
+  "Add a new pon_desc record if it doesn't exist in db"
+  [desc]
+  (let [desc-in-db (get-pon-desc desc)]
+    (if (not desc-in-db)
+      (add-pon-desc desc))))
+
+(defn upd-the-pon-desc
+  "Update the existing pon_desc record"
+  [desc]
+  (if-let [desc-in-db (get-pon-desc desc)]
+    (upd-pon-desc (merge desc-in-db desc))))
+    
+(defn batch-init-pon-desc
+  "initialize pon_desc table with content of card info"
+  []
+  (doseq [card (all-cards)]
+    (doseq [index (range 1 (inc (:port_cnt card)))]
+      (let [olt_id (:olt_id card)
+            pon (format "%d/%d" (:slot card) index)]
+        (new-pon-desc {:olt_id olt_id :pon pon})))))
+
 (defn- keys-onu [onu]
   (select-keys onu [:sn :type :auth]))
 

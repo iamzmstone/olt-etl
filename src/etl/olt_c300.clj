@@ -9,12 +9,6 @@
 (def olt-login (:olt-login conf))
 (def olt-pass (:olt-pass conf))
 
-(defn gbk-str
-  "decode gbk encoding string"
-  [s]
-  (if s
-    (String. (.getBytes s "iso8859-1") "gbk")))
-
 (defn no-paging
   "Send 'terminal length 0' command to make output no-paging"
   [session]
@@ -175,7 +169,7 @@
         pon (:pon onu)
         oid (:oid onu)
         cmd (format "show run int %s-onu_1/%s:%d" m pon oid)]
-    {:id (:id onu) :name (gbk-str (parser/onu-name (agent/cmd session cmd) m))}))
+    {:id (:id onu) :name (parser/gbk-str (parser/onu-name (agent/cmd session cmd) m))}))
 
 (defn olt-onu-name
   "Call onu-name for each onu of onu list and output onu-name list"
@@ -214,7 +208,8 @@
     (try
       (doall
        (zipmap (keys cmds)
-               (map #(hash-map :cmd % :out (gbk-str (agent/cmd s %))) (vals cmds))))
+               (map #(hash-map :cmd %
+                               :out (parser/gbk-str (agent/cmd s %))) (vals cmds))))
       (catch Exception ex
         (println (format "caught exception in onu-config [%s][%s:%d] : %s"
                          (:name olt) (:pon onu) (:oid onu) (.getMessage ex))))
