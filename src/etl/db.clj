@@ -16,8 +16,9 @@
 
 (conman/bind-connection *db* "sql/queries.sql")
 
-(defn save-olt [olt]
+(defn save-olt
   "Add a new olt if not found, otherwise update it"
+  [olt]
   (if-let [olt-in-db (get-olt olt)]
     (upd-olt (merge {:id (:id olt-in-db)} olt))
     (add-olt olt)))

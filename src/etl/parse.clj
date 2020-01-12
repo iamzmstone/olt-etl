@@ -1,20 +1,13 @@
 (ns etl.parse
-  (:require [clojure.string :as str]
-            [cprop.core :refer [load-config]]))
-
-(def conf (load-config))
+  (:require
+   [etl.helper :refer [stateof]]
+   [clojure.string :as str]))
 
 (defn gbk-str
   "decode gbk encoding string"
   [s]
-  (if s
+  (when s
     (String. (.getBytes s "iso8859-1") "gbk")))
-
-(defn- stateof
-  "Get the state of given state according to state mapping rules"
-  [s]
-  (let [m (:state-mapping conf)]
-    (or (m s) s)))
 
 ;;; functions for parsing card part
 (defn card-model
@@ -57,12 +50,11 @@
         state (cond
                 (re-find #"^gpon" onu-str) {:m "gpon" :s (get cols 4)}
                 (re-find #"^epon" onu-str) {:m "epon" :s (get cols 2)}
-                :else {:m "gpon" :s (get cols 3)})]
-    (let [m (re-find #"(\d+\/\d+):(\d+)" onu-str)]
-      ;;(println "debug:" onu-str state)
-      (if m
-        {:pon (get m 1) :oid (read-string (get m 2))
-         :model (:m state) :state (stateof (:s state))}))))
+                :else {:m "gpon" :s (get cols 3)})
+        m (re-find #"(\d+\/\d+):(\d+)" onu-str)]
+    (when m
+      {:pon (get m 1) :oid (read-string (get m 2))
+       :model (:m state) :state (stateof (:s state))})))
 
 (defn onu-state-list
   "Get a list of state map from output of onu-status"
@@ -75,17 +67,17 @@
 ;;; functions for parsing loid/sn/mac of onu
 (defn- pon-intf
   [list]
-  (if-let [[- m intf] (re-find #"([g|e]pon)-olt_1/(\d+\/\d+)" (nth list 0))]
+  (if-let [[_ m intf] (re-find #"([g|e]pon)-olt_1/(\d+\/\d+)" (nth list 0))]
     {:pon intf :model m}))
 
 (defn- pon-intf-line
   [line]
-  (if-let [[- m intf] (re-find #"([g|e]pon)-olt_1/(\d+\/\d+)" line)]
+  (if-let [[_ m intf] (re-find #"([g|e]pon)-olt_1/(\d+\/\d+)" line)]
     {:pon intf :model m}))
 
 (defn onu-sn
   [str]
-  (if-let [[- oid type auth sn] (re-find #"onu (\d+) type (\S+) (sn|loid|mac) (\S+)" str)]
+  (if-let [[_ oid type auth sn] (re-find #"onu (\d+) type (\S+) (sn|loid|mac) (\S+)" str)]
     {:oid oid :type type :auth auth :sn sn}))
 
 (defn- onu-sns
@@ -132,19 +124,19 @@
 
 (defn- onu-intf
   [list]
-  (if-let [[- pon oid] (re-find #"show int [g|e]pon-onu_1/(\d+\/\d+):(\d+)"
+  (if-let [[_ pon oid] (re-find #"show int [g|e]pon-onu_1/(\d+\/\d+):(\d+)"
                                 (nth list 0))]
     {:pon pon :oid oid}))
 
 (defn- traffic-line
   [line]
-  (if-let [[- in] (re-find #"Input rate :\s+(\d+) Bps" line)]
+  (if-let [[_ in] (re-find #"Input rate :\s+(\d+) Bps" line)]
     {:in_bps (read-string in)}
-    (if-let [[- out] (re-find #"Output rate:\s+(\d+) Bps" line)]
+    (if-let [[_ out] (re-find #"Output rate:\s+(\d+) Bps" line)]
       {:out_bps (read-string out)}
-      (if-let [[- - in-bw] (re-find #"Input bandwidth (throughput|thoughput) :(\S+)" line)]
+      (if-let [[_ _ in-bw] (re-find #"Input bandwidth (throughput|thoughput) :(\S+)" line)]
         {:in_bw (if (= "N/A" in-bw) 0 (read-string in-bw))}
-        (if-let [[- - out-bw] (re-find #"Output bandwidth (throughput|thoughput):\s*(\S+)" line)]
+        (if-let [[_ _ out-bw] (re-find #"Output bandwidth (throughput|thoughput):\s*(\S+)" line)]
           {:out_bw (if (= "N/A" out-bw) 0 (read-string out-bw))})))))
 
 (defn traffic-map
@@ -157,7 +149,7 @@
   [list]
   (let [line (first (filter #(re-find #"^[g|e]pon-onu_1" %) list))
         [onu rx] (str/split line #"\s+")]
-    (if-let [[- pon oid] (re-find #"(\d+\/\d+):(\d+)" onu)]
+    (if-let [[_ pon oid] (re-find #"(\d+\/\d+):(\d+)" onu)]
       {:pon pon :oid oid :rx_power (if (= rx "N/A") "-100" (read-string rx))})))
 
 ;;; property description $$%s$$
@@ -172,5 +164,5 @@
       (= model "epon") (second (re-find #"\$\$(.+)\$\$" name-line))
       (= model "gpon") (second (re-find #"name (.+)" name-line)))
     "No-Name"))
-                          
+             
   

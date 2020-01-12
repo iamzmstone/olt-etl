@@ -1,59 +1,29 @@
 (ns etl.olt-c300
-  (:require [etl.telnet-agent :as agent]
-            [cprop.core :refer [load-config]]
-            [etl.parse :as parser]
-            [clojure.tools.logging :as log]
-            [clojure.string :as str]))
+  (:require
+   [etl.helper :refer [conf]]
+   [etl.telnet-agent :as agent]
+   [etl.olt :refer [login logout cmd get-state]]
+   [etl.parse :as parser]
+   [clojure.tools.logging :as log]
+   [clojure.string :as str]))
 
-(def conf (load-config))
 (def olt-login (:olt-login conf))
 (def olt-pass (:olt-pass conf))
 
-(defn no-paging
-  "Send 'terminal length 0' command to make output no-paging"
-  [session]
-  (agent/cmd session "terminal length 0"))
+(defn command
+  [ip cmd-str]
+  (cmd ip olt-login olt-pass cmd-str))
 
-(defn login
-  "Telnet login olt and return session"
-  ([ip port user pwd]
-   (let [s (agent/login ip port user pwd)]
-     (if s
-       (do
-         (no-paging s)
-         s)
-       (if (nil? s)
-         (log/error (format "IP addess: [%s] is not reachable" ip))
-         (log/error (format "Login failed at: [%s][%s][%s]" ip user pwd))))))
-  ([ip user pwd]
-   (login ip 23 user pwd)))
-
-(defn logout
-  "Disconnect telnet sesion"
-  [session]
-  (agent/quit session))
-
-(defn cmd
-  "Telnet to an OLT and get output of command, retry if it is not success"
-  ([ip user pwd command retry]
-   ;;;(println "Retry: " retry)
-   (log/info (format "cmd: [%s] retry: [%d]" command retry))
-   (if (> retry 0)
-     (when-let [s (login ip user pwd)]
-       (let [rst (agent/cmd-status s command)]
-         (agent/quit s)
-         (if (:status rst)
-           (:result rst)
-           (recur ip user pwd command (dec retry)))))))
-  ([ip user pwd command]
-   (cmd ip user pwd command 3)))
+(defn logon
+  [ip]
+  (login ip olt-login olt-pass))
 
 (defn card-info
   "Get output of command 'show card' for a given olt, and parse the output
   to form a vector of card map which is ready to insert to database"
   [olt]
   (log/info (format "card-info for olt [%s:%s]" (:name olt) (:ip olt)))
-  (if-let [card-out (cmd (:ip olt) olt-login olt-pass "show card")]
+  (if-let [card-out (command (:ip olt) "show card")]
     (map #(merge {:olt_id (:id olt)} %)
                  (parser/card-list card-out))))
 
@@ -61,7 +31,7 @@
   "Get output of command 'show run' for a given olt"
   [olt]
   (log/info (format "running-config for olt [%s:%s]" (:name olt) (:ip olt)))
-  (cmd (:ip olt) olt-login olt-pass "show run"))
+  (command (:ip olt) "show run"))
 
 (defn pon-onu-sn
   "Send 'show run int [g|e]pon-olt_1/$pon' command and get onu sn on a given pon port"
@@ -82,7 +52,7 @@
   "call card-sn for each card on a given olt, and combine the output to get
   all sn output of the olt"
   [olt cards]
-  (if-let [s (login (:ip olt) olt-login olt-pass)]
+  (if-let [s (logon (:ip olt))]
     (try
       (str/join "=====\n"
                 (map #(card-sn s %)
@@ -107,7 +77,7 @@
 (defn olt-state
   "call pon-state for each pon port for a given olt, and combine all outputs"
   [olt pon-ports]
-  (if-let [s (login (:ip olt) olt-login olt-pass)]
+  (if-let [s (logon (:ip olt))]
     (try
       (str/join "=====\n"
                 (map #(pon-state s (:pon %) (:model %)) pon-ports))
@@ -129,7 +99,7 @@
 (defn olt-rx-power
   "Call onu-rx-power for each onu of onu list, and combine the outputs"
   [olt onu-list]
-  (if-let [s (login (:ip olt) olt-login olt-pass)]
+  (if-let [s (logon (:ip olt))]
     (try
       (doall (map #(onu-rx-power s %) onu-list))
       (catch Exception ex
@@ -151,7 +121,7 @@
 (defn olt-onu-traffic
   "Call onu-traffic for each onu of onu list, and combine the outputs"
   [olt onu-list]
-  (if-let [s (login (:ip olt) olt-login olt-pass)]
+  (if-let [s (logon (:ip olt))]
     (try
       (doall
        (map #(merge (select-keys % [:pon :oid]) (onu-traffic s %)) onu-list))
@@ -174,7 +144,7 @@
 (defn olt-onu-name
   "Call onu-name for each onu of onu list and output onu-name list"
   [olt onus]
-  (if-let [s (login (:ip olt) olt-login olt-pass)]
+  (if-let [s (logon (:ip olt))]
     (try
       (doall
        (map #(onu-name s %) onus))
@@ -203,7 +173,7 @@
 
 (defn onu-config [olt onu]
   "Get all related olt config for a given onu, and update its state in db"
-  (let [s (login (:ip olt) olt-login olt-pass)
+  (let [s (logon (:ip olt))
         cmds (onu-cmds onu)]
     (try
       (doall
@@ -240,11 +210,6 @@
 
 
 ;;; code for get latest state information for given onus list
-(defn get-state
-  "Get the state map from states via pon and oid given"
-  [states pon oid]
-  (first (filter #(and (= pon (:pon %)) (= oid (:oid %))) states)))
-
 (defn states-for-onus
   "Get latest states for given onus"
   [session onus]
@@ -271,7 +236,7 @@
   [olt onus]
   (log/info (format "Processing latest-states on [%s][%s], onu count: [%d]"
                     (:name olt) (:ip olt) (count onus)))
-  (if-let [s (login (:ip olt) olt-login olt-pass)]
+  (if-let [s (logon (:ip olt))]
     (try
       (let [states (states-for-onus s onus)
             rxs (rx-for-onus s states)
@@ -280,5 +245,21 @@
       (catch Exception ex
         (println (format "in latest-states caught exception: %s" (.getMessage ex)))
         (log/error (format "caught exception in olt-sn for olt [%s][%s]: %s"
+                           (:name olt) (:ip olt)  (.getMessage ex))))
+      (finally (logout s)))))
+
+(defn cutover-states
+  "Get cutover state(only state and rx) maps for given olt and onus"
+  [olt onus]
+  (log/info (format "Processing cutover-states on [%s][%s], onu count: [%d]"
+                    (:name olt) (:ip olt) (count onus)))
+  (if-let [s (logon (:ip olt))]
+    (try
+      (let [states (states-for-onus s onus)
+            rxs (rx-for-onus s states)]
+        (map merge states rxs))
+      (catch Exception ex
+        (println (format "in latest-states caught exception: %s" (.getMessage ex)))
+        (log/error (format "caught exception in cutover-states for olt [%s][%s]: %s"
                            (:name olt) (:ip olt)  (.getMessage ex))))
       (finally (logout s)))))

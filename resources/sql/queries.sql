@@ -17,6 +17,16 @@ UPDATE olts
 SELECT * FROM olts
 ORDER BY name
 
+-- :name zte-olts :? :*
+-- :doc retrieve all ZTE olts
+SELECT * FROM olts
+ WHERE brand = "中兴通讯股份有限公司"
+
+-- :name not-zte-olts :? :*
+-- :doc retrieve all other brand olts
+SELECT * FROM olts
+ WHERE brand != "中兴通讯股份有限公司"
+
 -- :name get-olt :? :1
 -- :doc retrieve the otl by ip
 SELECT * FROM olts
@@ -110,10 +120,13 @@ UPDATE batches
 -- :doc retrieve all onus
 SELECT * FROM onus
 
--- :name onus-without-name :? :*
+-- :name zte-onus-without-name :? :*
 -- :doc retrieve onus without name
-SELECT * FROM onus
- WHERE name is null
+SELECT a.*
+  FROM onus a, olts b
+ WHERE a.name is null
+   AND a.olt_id = b.id
+   AND b.brand = '中兴通讯股份有限公司'
 
 -- :name olt-onus :? :*
 -- :doc retrieve onus by olt_id
@@ -187,6 +200,7 @@ SELECT a.*
   FROM olts a
  WHERE NOT EXISTS (SELECT 1 FROM onus b
                     WHERE a.id = b.olt_id)
+   AND a.brand = "中兴通讯股份有限公司"
 
 -- :name olt-without-states :? :*
 -- :doc retrieve olts has no states for a given batch
@@ -196,5 +210,5 @@ SELECT a.*
                    WHERE a.id = b.olt_id
 		   AND b.id = c.onu_id
 		   AND c.batch_id = :batch_id)
-		   
+   AND a.brand = "中兴通讯股份有限公司"		   
 

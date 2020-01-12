@@ -1,19 +1,23 @@
 (ns etl.core
-  (:require [etl.olt-c300 :as c300]
-            [etl.db :as db]
-            [etl.telnet-agent :as telnet]
-            [mount.core :as mount]
-            [clojure.string :as str]
-            [clojure.java.io :as io]
-            [clj-time.core :as t]
-            [cprop.core :refer [load-config]]
-            [clojure.tools.logging :as log]
-            [etl.parse :as parser])
+  (:require
+   [etl.helper :refer [conf hw-olt? fh-olt?]]
+   [etl.olt :as olt]
+   [etl.olt-c300 :as c300]
+   [etl.olt-huawei :as huawei]
+   [etl.olt-fh :as fh]
+   [etl.db :as db]
+   [etl.telnet-agent :as telnet]
+   [mount.core :as mount]
+   [clojure.string :as str]
+   [clojure.java.io :as io]
+   [clj-time.core :as t]
+   [clojure.tools.logging :as log]
+   [etl.parse :as parser])
   (:gen-class))
 
-(def conf (load-config))
 (def cores (.. Runtime getRuntime availableProcessors))
 (def conf-path (:conf-path conf))
+
 
 (defn log-test []
   (log/info "log test ..."))
@@ -21,29 +25,40 @@
 (defn olts-ok? []
   (let [olts (db/all-olts)]
     (doseq [olt olts]
-      (if (not (telnet/reachable? (:ip olt)))
+      (when (not (telnet/reachable? (:ip olt)))
         (println (format "OLT is not reachable: [%s][%s]" (:name olt) (:ip olt)))))))
 
-(defn olts-login-ok? []
-  (let [olts (db/all-olts)]
+(defn zte-olts-login-ok? []
+  (let [olts (db/zte-olts)]
     (doseq [olt olts]
       (println (:name olt) ":" (:ip olt))
-      (let [s (c300/login (:ip olt) (:olt-login conf) (:olt-pass conf))]
+      (let [s (olt/login (:ip olt) (:olt-login conf) (:olt-pass conf))]
         (if s
-          (c300/logout s)
+          (olt/logout s)
           (println (format "OLT login failed: [%s][%s]" (:name olt) (:ip olt))))))))
 
+(defn other-olts-login-ok? []
+  (let [olts (db/not-zte-olts)]
+    (doseq [olt olts]
+      (println (:name olt) ":" (:ip olt))
+      (let [user (if (hw-olt? olt) (:hw-login conf) (:fh-login conf))
+            pass (if (hw-olt? olt) (:hw-pass conf) (:fh-pass conf))
+            s (olt/login-en (:ip olt) user pass)]
+        (if s
+          (olt/logout s)
+          (println (format "OLT login failed: [%s][%s]" (:name olt) (:ip olt))))))))
+    
 (defn load-olts []
   (with-open [f (io/reader (conf :olt-txt-file))]
     (doseq [line (line-seq f)]
-      (if (> (count line) 5)
+      (when (> (count line) 5)
         (if-let [[name ip] (str/split line #"\s+")]
           (db/save-olt {:name name :ip ip :brand "ZTE"}))))))
 
 (defn load-tele-olts []
   (with-open [f (io/reader "/Users/zengm/test/telecom-olt.txt")]
     (doseq [line (line-seq f)]
-      (if (> (count line) 5)
+      (when (> (count line) 5)
         (if-let [[name code room category brand ip] (str/split line #"\t")]
           (db/save-olt {:name name :ip ip :brand brand
                         :dev_code code :machine_room room :category category}))))))
@@ -64,24 +79,23 @@
       (save-olt-conf olt)
       (log/info (format "dump-confs finished...[%s][%s]" (:name olt) (:ip olt))))))
 
-(defn etl-card-info2 []
-  (log/info "etl-card-info start...")
-  (let [olts (db/all-olts)]
-    (let [runs (for [olt olts]
-                 (future (c300/card-info olt)))]
-      (let [cards (remove nil? (flatten (doall (map deref runs))))]
-        (doseq [card cards]
-          (db/save-card card)))))
-  (log/info "etl-card-info finished..."))
+(defn olt-card-info
+  "call different card-info func according to brand of olt"
+  [olt]
+  (cond
+    (hw-olt? olt) (huawei/card-info olt)
+    (fh-olt? olt) (fh/card-info olt)
+    :else (c300/card-info olt)))
 
 (defn etl-card-info []
   (let [olts (db/all-olts)]
     (log/info "etl-card-info start...")
-    (doseq [card (remove nil? (flatten (pmap c300/card-info olts)))]
+    (doseq [card (remove nil? (flatten (pmap olt-card-info olts)))]
       (db/save-card card))
     (log/info "etl-card-info finished...")))
 
 (defn sn-info
+  "for zte olt"
   ([olt retry]
    (log/info (format "processing sn-info [%s][%s][%d]" (:name olt) (:ip olt) retry))
    (if (> retry 0)
@@ -96,11 +110,33 @@
   ([olt]
    (sn-info olt 3)))
 
+(defn- card-sn-func
+  [olt cards]
+  (cond
+    (hw-olt? olt) (huawei/olt-onu-info olt cards true)
+    (fh-olt? olt) (fh/olt-onu-info olt cards true)
+    :else nil))
+
+(defn olt-sn-info
+  "for huawei and fh olt"
+  ([olt retry]
+   (log/info (format "processing sn-info [%s][%s][%d]" (:name olt) (:ip olt) retry))
+   (if (> retry 0)
+     (let [cards (db/olt-cards {:olt_id (:id olt)})
+           onus (card-sn-func olt (map :slot cards))]
+       (if onus
+         onus
+         (recur olt (dec retry))))
+     (log/error (format "Failed after retry in sn-info [%s][%s]"
+                        (:name olt) (:ip olt)))))
+  ([olt]
+   (olt-sn-info olt 3)))
+
 (defn- etl-onus-for-olts
-  "Run etl onus for given olt list"
+  "Run etl onus for given olt list: for ZTE"
   [olts]
   (let [part-num (+ cores 2)]
-    (log/info "etl-onus start...")
+    (log/info "zte-etl-onus start...")
     (doseq [[i olt-parts] (map-indexed vector (partition-all part-num olts))]
       (future
         (let [sn-maps (pmap sn-info olt-parts)]
@@ -108,17 +144,31 @@
             (db/save-onu onu))
           (doseq [pon-desc (remove nil? (flatten (map :pon-descs sn-maps)))]
             (db/upd-the-pon-desc pon-desc)))
-        (log/info (format "etl-onus finished at [%d]..." i))))))
+        (log/info (format "zte-etl-onus finished at [%d]..." i))))))
 
-(defn etl-onus
-  "Run etl for all olts"
+(defn etl-zte-onus
+  "Run etl onus for all zte olts"
   []
-  (etl-onus-for-olts (db/all-olts)))
+  (etl-onus-for-olts (db/zte-olts)))
+
+(defn etl-olt-onus
+  "Run etl onus for all hw&fh olts"
+  []
+  (let [part-num (+ cores 2)
+        olts (db/not-zte-olts)]
+    (log/info "etl-olt-onus start...")
+    (doseq [[i olt-parts] (map-indexed vector (partition-all part-num olts))]
+      (future
+        (let [sns (pmap olt-sn-info olt-parts)]
+          (doseq [onu (flatten sns)]
+            (db/save-onu onu)))
+        (log/info (format "etl-olt-onus finished at [%d]..." i))))))
 
 (defn etl-onus-left
   "Run etl for olts without any onus"
   []
   (etl-onus-for-olts (db/olt-without-onus)))
+
 
 (defn merge-onu-id [olt onus state]
   (let [onu (first (filter #(and
@@ -143,6 +193,24 @@
                         (:name olt) (:ip olt)))))
   ([olt]
    (state-info olt 3)))
+
+(defn- olt-states-all
+  ([olt retry]
+   (log/info (format "processing olt-states-all [%s][%s][%d]"
+                     (:name olt) (:ip olt) retry))
+   (if (> retry 0)
+     (let [cards (map :slot (db/olt-cards {:olt_id (:id olt)}))
+           onus (db/olt-onus {:olt_id (:id olt)})
+           states (if (hw-olt? olt)
+                    (huawei/olt-onu-all olt cards)
+                    (fh/olt-onu-all olt cards))]
+       (if states
+         (map #(merge-onu-id olt onus %) states)
+         (recur olt (dec retry))))
+     (log/error (format "Failed after retry in olt-states-all [%s][%s]"
+                        (:name olt) (:ip olt)))))
+  ([olt]
+   (olt-states-all olt 3)))
 
 (defn rx-power-info
   ([olt onus retry]
@@ -172,11 +240,12 @@
   (let [onus (state-info olt)]
     (map merge onus (rx-power-info olt onus) (traffic-info olt onus))))
 
-(defn- etl-states-for-olts [olts batch-name]
-  "Run etl states for a given olts list and a batch name"
+(defn- etl-states-for-zte-olts 
+  "Run etl states for a given ZTE olts list and a batch name"
+  [olts batch-name]
   (let [batch_id (db/first-or-new-batch batch-name)
         part-num (+ cores 2)]
-    (log/info (format "etl-states for batch [%s] start..." batch-name))
+    (log/info (format "etl-zte-states for batch [%s] start..." batch-name))
     (doseq [[i olt-parts] (map-indexed vector (partition-all part-num olts))]
       (future
         (doseq [s (map #(merge {:batch_id batch_id} %)
@@ -184,21 +253,50 @@
           (if (:onu_id s)
             (db/save-state s)
             (log/warn "state without onu_id" s)))
-        (log/info (format "etl-states for batch [%s] finished at [%d]..."
+        (log/info (format "etl-zte-states for batch [%s] finished at [%d]..."
                           batch-name i))
         (db/upd-batch {:batch_id batch_id :end_time (t/now) :finished true})))))
 
-(defn etl-states
-  "Run etl states for all olts"
+(defn- etl-states-for-non-zte-olts
+  "Run etl states for a given non-ZTE olt list and a batch name"
+  [olts batch-name]
+  (let [batch_id (db/first-or-new-batch batch-name)
+        part-num (+ cores 2)]
+    (log/info (format "olt-states-all for batch [%s] start..." batch-name))
+    (doseq [[i olt-parts] (map-indexed vector (partition-all part-num olts))]
+      (future
+        (doseq [s (map #(merge {:batch_id batch_id} %)
+                       (flatten (pmap olt-states-all olt-parts)))]
+          (if (:onu_id s)
+            (db/save-state s)
+            (log/warn "state without onu_id" s)))
+        (log/info (format "olt-states-all for batch [%s] finished at [%d]..."
+                          batch-name i))
+        (db/upd-batch {:batch_id batch_id :end_time (t/now) :finished true})))))
+
+(defn etl-zte-states
+  "Run etl states for all ZTE olts"
   [batch-name]
-  (etl-states-for-olts (db/all-olts) batch-name))
+  (etl-states-for-zte-olts (db/zte-olts) batch-name))
+
+(defn etl-olt-states
+  "Run etl states for all non-ZTE olts"
+  [batch-name]
+  (etl-states-for-non-zte-olts (db/not-zte-olts) batch-name))
 
 (defn etl-states-left
   "Run etl states for olts without states for given batch-name"
   [batch-name]
   (let [olts (db/olt-without-states
               {:batch_id (db/first-or-new-batch batch-name)})]
-    (etl-states-for-olts olts batch-name)))
+    (etl-states-for-zte-olts olts batch-name)))
+
+(defn- ls-func
+  [olt onus]
+  (cond
+    (hw-olt? olt) (huawei/latest-states olt onus)
+    (fh-olt? olt) (fh/latest-states olt onus)
+    :else (c300/latest-states olt onus)))
 
 (defn latest-states
   "Get the latest states of onus given"
@@ -206,7 +304,7 @@
   (log/info (format "latest-states for onus[%d] start..." (count onus)))
   (let [olt-onus (group-by :olt_id onus)
         olts (map #(db/get-olt-by-id {:id %}) (keys olt-onus))]
-    (flatten (pmap c300/latest-states olts (vals olt-onus)))))
+    (flatten (doall (pmap ls-func olts (vals olt-onus))))))
 
 (defn etl-onu-names
   "Update onus' name for onus given"
@@ -226,7 +324,7 @@
     (latest-states onus)))
 
 (defn etl-onu-without-name []
-  (let [onus (db/onus-without-name)]
+  (let [onus (db/zte-onus-without-name)]
     (etl-onu-names onus)))
 
 (defn -main
@@ -236,11 +334,17 @@
   (case (str/lower-case (first args))
     "card" (etl-card-info)
     "pon-desc" (db/batch-init-pon-desc)
-    "onu" (etl-onus)
+    "onu" (do
+            (etl-zte-onus)
+            (etl-olt-onus))
     "onu-left" (etl-onus-left)
     "onu-name" (etl-onu-without-name)
-    "state" (etl-states (second args))
+    "state" (let [bat-name (second args)]
+              (etl-zte-states bat-name)
+              (etl-olt-states bat-name))
     "state-left" (etl-states-left (second args))
     "reachable" (olts-ok?)
-    "loginable" (olts-login-ok?)
+    "loginable" (do
+                  (zte-olts-login-ok?)
+                  (other-olts-login-ok?))
     (println "Wrong argument...")))
