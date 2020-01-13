@@ -1,13 +1,15 @@
 (ns etl.helper
   (:require
+   [mount.core :refer [defstate]]
    [cprop.core :refer [load-config]]))
 
-(def conf (load-config))
+(defstate conf
+  :start (load-config))
 
 (defn stateof
   "Get the state of given state according to state mapping rules"
   [s]
-  (let [m (:state-mapping conf)]
+  (let [m (:state-mapping (load-config))]
     (or (m s) s)))
 
 (defn hw-olt?

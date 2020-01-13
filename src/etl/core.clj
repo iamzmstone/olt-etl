@@ -90,7 +90,7 @@
 (defn etl-card-info []
   (let [olts (db/all-olts)]
     (log/info "etl-card-info start...")
-    (doseq [card (remove nil? (flatten (pmap olt-card-info olts)))]
+    (doseq [card (remove nil? (flatten (doall (pmap olt-card-info olts))))]
       (db/save-card card))
     (log/info "etl-card-info finished...")))
 

@@ -7,12 +7,9 @@
    [clojure.string :as str]
    [etl.parse-fh :as parser]))
 
-(def olt-login (:fh-login conf))
-(def olt-pass (:fh-pass conf))
-
 (defn login
   [ip]
-  (login-en ip olt-login olt-pass))
+  (login-en ip (:fh-login conf) (:fh-pass conf)))
 
 (defn card-info
   "Get output of command 'show version' for a given olt, and parse the output

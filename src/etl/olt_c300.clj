@@ -7,16 +7,13 @@
    [clojure.tools.logging :as log]
    [clojure.string :as str]))
 
-(def olt-login (:olt-login conf))
-(def olt-pass (:olt-pass conf))
-
 (defn command
   [ip cmd-str]
-  (cmd ip olt-login olt-pass cmd-str))
+  (cmd ip (:olt-login conf) (:olt-pass conf) cmd-str))
 
 (defn logon
   [ip]
-  (login ip olt-login olt-pass))
+  (login ip (:olt-login conf) (:olt-pass conf)))
 
 (defn card-info
   "Get output of command 'show card' for a given olt, and parse the output

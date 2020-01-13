@@ -157,7 +157,8 @@ UPDATE onus
    SET sn = :sn,
        type = :type,
        auth = :auth,
-       model = :model
+       model = :model,
+       upd_time = now()
  WHERE id = :id
 
 -- :name upd-onu-name :! :n

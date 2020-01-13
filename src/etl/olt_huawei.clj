@@ -7,12 +7,9 @@
    [clojure.string :as str]
    [etl.parse-huawei :as parser]))
 
-(def olt-login (:hw-login conf))
-(def olt-pass (:hw-pass conf))
-
 (defn login
   [ip]
-  (login-en ip olt-login olt-pass))
+  (login-en ip (:hw-login conf) (:hw-pass conf)))
 
 (defn card-info
   "Get output of command 'display board 0' for a given olt, and parse the output

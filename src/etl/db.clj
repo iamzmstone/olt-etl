@@ -69,8 +69,9 @@
   "Add a new onu if it doesn't exist in db, otherwise update it in db if it diff"
   [onu]
   (if-let [onu-in-db (get-onu onu)]
-    (if (not (= (keys-onu onu) (keys-onu onu-in-db)))
-      (upd-onu (merge {:id (:id onu-in-db)} onu)))
+    ;;;(if (not (= (keys-onu onu) (keys-onu onu-in-db)))
+      ;;;(upd-onu (merge {:id (:id onu-in-db)} onu)))
+    (upd-onu (merge {:id (:id onu-in-db)} onu))
     (add-onu onu)))
 
 (defn save-state
