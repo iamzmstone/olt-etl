@@ -124,7 +124,7 @@ SELECT * FROM onus
 -- :doc retrieve onus without name
 SELECT a.*
   FROM onus a, olts b
- WHERE a.name is null
+ WHERE a.name = ''
    AND a.olt_id = b.id
    AND b.brand = '中兴通讯股份有限公司'
 
