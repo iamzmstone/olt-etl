@@ -136,7 +136,9 @@
         pon (:pon onu)
         oid (:oid onu)
         cmd (format "show run int %s-onu_1/%s:%d" m pon oid)]
-    {:id (:id onu) :name (parser/gbk-str (parser/onu-name (agent/cmd session cmd) m))}))
+    {:id (:id onu)
+     :name (or (parser/gbk-str (parser/onu-name (agent/cmd session cmd) m))
+               "NULL")}))
 
 (defn olt-onu-name
   "Call onu-name for each onu of onu list and output onu-name list"
@@ -152,8 +154,9 @@
       (finally (logout s)))))
 
 ;;; code for onu configuration
-(defn onu-cmds [onu]
+(defn onu-cmds
   "Get a list of olt commands for a given onu"
+  [onu]
   (let [m (:model onu)
         pon (:pon onu)
         oid (:oid onu)]
@@ -168,8 +171,9 @@
     :mac (format "show mac %s onu %s-onu_1/%s:%d" m m pon oid)
     :uncfg "show pon onu uncfg sn loid"}))
 
-(defn onu-config [olt onu]
+(defn onu-config
   "Get all related olt config for a given onu, and update its state in db"
+  [olt onu]
   (let [s (logon (:ip olt))
         cmds (onu-cmds onu)]
     (try
@@ -182,8 +186,9 @@
                          (:name olt) (:pon onu) (:oid onu) (.getMessage ex))))
       (finally (logout s)))))
 
-(defn state-new [onu onu-config]
+(defn state-new
   "Get a new onu map according to onu-config fetched"
+  [onu onu-config]
   (let [pon (:pon onu) oid (:oid onu)
         pon-str (format "/%s:%d" pon oid)
         state-out (get-in onu-config [:state :out])
