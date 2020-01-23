@@ -15,6 +15,7 @@
   "Get output of command 'display board 0' for a given olt, and parse the output
   to form a vector of card map which is ready to insert to database"
   [olt]
+  (log/info (format "card-info for olt [%s:%s]" (:name olt) (:ip olt)))
   (if-let [client (login (:ip olt))]
     (let [card-out (agent/cmd client "display board 0")]
       (logout client)
@@ -37,19 +38,24 @@
 
 (defn sn-map
   "transform sn items to sn map"
-  [items]
-  {:pon (get items 1)
-   :oid (read-string (get items 2))
-   :sn (get items 3)
-   :type "HW-XXX"
-   :auth "sn"
-   :model "gpon"})
+  [items model]
+  (let [auth (if (= model "GPON")
+               "sn"
+               "mac")]
+    {:pon (get items 1)
+     :oid (read-string (get items 2))
+     :sn (get items 3)
+     :type "HW-XXX"
+     :auth auth
+     :model (str/lower-case model)}))
 
-(def extract-sn-map
+(defn extract-sn-map
   "x-form to extract onu sn map"
-  (comp
-   (filter #(= 4 (count %)))
-   (map sn-map)))
+  [model]
+  (let [fld-cnt (if (= model "GPON") 4 9)]
+    (comp
+     (filter #(= fld-cnt (count %)))
+     (map #(sn-map % model)))))
 
 (defn state-map
   "transform state items to state map"
@@ -74,12 +80,12 @@
    
 (defn board-out
   "Send 'display board 0/$card-no' command and get onu sn/state info"
-  [client icard sn?]
-  (let [cmd-out (agent/cmd client (format "display board 0/%d" icard))
+  [client card sn?]
+  (let [cmd-out (agent/cmd client (format "display board 0/%d" (:slot card)))
         lines (str/split-lines cmd-out)
         onu-items (transduce extract-onu-sec conj [] lines)]
     (if sn?
-      (transduce extract-sn-map conj [] onu-items)
+      (transduce (extract-sn-map (:model card)) conj [] onu-items)
       (transduce extract-state-map conj [] onu-items))))
 
 (defn port-state-out
@@ -107,8 +113,8 @@
 
 (defn optical-info-out
   "Send 'display ont optical-info 0 all' command and get onu rx-power info"
-  [client icard iport]
-  (let [s-new (agent/hw-config client icard)
+  [client icard iport model]
+  (let [s-new (agent/hw-config client icard (str/lower-case model))
         cmd-out (agent/cmd s-new (format "display ont optical-info %d all" iport))
         lines (str/split-lines cmd-out)
         onu-items (transduce extract-optical-sec conj [] lines)
@@ -121,9 +127,9 @@
   (if-let [s (login (:ip olt))]
     (try
       (flatten (doall (for [c cards]
-                        (doall (for [p (range 0 16)]
+                        (doall (for [p (range 0 (:port_cnt c))]
                                  (map #(merge % {:olt_id (:id olt)})
-                                      (optical-info-out s c p)))))))
+                                      (optical-info-out s (:slot c) p (:model c))))))))
       (catch Exception ex
         (println (str "caught exception: " (.getMessage ex)))
         (log/error (format "caught exception in olt-onu-info for olt [%s][%s]: %s"
@@ -144,7 +150,7 @@
     (merge {:in_bps 0 :out_bps 0 :in_bw 0 :out_bw 0}
            state
            (or rx {:rx_power -100}))))
-  
+
 (defn olt-onu-all
   [olt cards]
   (let [states (olt-onu-info olt cards false)
@@ -154,17 +160,17 @@
 (defn states-for-onus
   "Get latest states for given onus"
   [client onus]
-  (let [pons (distinct (map :pon onus))
+  (let [pons (distinct (map #(select-keys % [:pon :model]) onus))
         states (flatten
-                (doall (for [pon pons]
+                (doall (for [pon (map :pon pons)]
                          (let [[icard iport]
                                (map read-string (str/split pon #"/"))]
                            (port-state-out client icard iport)))))
         rxs (flatten
              (doall (for [pon pons]
                       (let [[icard iport]
-                            (map read-string (str/split pon #"/"))]
-                        (optical-info-out client icard iport)))))
+                            (map read-string (str/split (:pon pon) #"/"))]
+                        (optical-info-out client icard iport (:model pon))))))
         all (map #(merge-the-onu rxs %) states)]
     (map #(merge {:onu_id (:id %)} (get-state all (:pon %) (:oid %))) onus)))
 
@@ -182,9 +188,3 @@
                            (:name olt) (:ip olt)  (.getMessage ex))))
       (finally (logout s)))))
 
-(defn mytest []
-  (let [olt {:id 111 :ip "10.250.79.141" :name "test-olt"}
-        cards [1 2]]
-    (olt-onu-all olt cards)))
-  ;;(olt-onu-info {:id 111 :ip "10.250.79.141" :name "test-olt"} [1 2] false))
-  ;;(config-mode {:id 111 :ip "10.250.79.141" :name "test-olt"}))

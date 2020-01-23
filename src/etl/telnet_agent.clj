@@ -75,11 +75,11 @@
 
 (defn hw-config
   "Send config and interface gpon 0/n command then return client with new prompt"
-  [client slot]
+  [client slot model]
   (let [s (:session client)]
     (telnet/write s "config")
     (telnet/read-all s)
-    (telnet/write s (format "interface gpon 0/%d" slot))
+    (telnet/write s (format "interface %s 0/%d" model slot))
     (let [prompt (last (cs/split-lines (telnet/read-all s)))]
       {:session s :prompt prompt})))
 

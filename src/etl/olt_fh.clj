@@ -105,11 +105,11 @@
       (try
         (flatten
          (doall (for [c cards]
-                  (doall (for [i (range 1 17)]
+                  (doall (for [i (range 1 (inc (:port_cnt c)))]
                            (map #(merge % {:olt_id (:id olt)})
                                 (if sn?
-                                  (sn-cmd-out s-new c i)
-                                  (state-cmd-out s-new c i))))))))
+                                  (sn-cmd-out s-new (:slot c) i)
+                                  (state-cmd-out s-new (:slot c) i))))))))
         (catch Exception ex
           (println (str "caught exception: " (.getMessage ex)))
           (log/error (format "caught exception in olt-onu-info for olt [%s][%s]: %s"

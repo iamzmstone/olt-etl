@@ -56,7 +56,7 @@
           (db/save-olt {:name name :ip ip :brand "ZTE"}))))))
 
 (defn load-tele-olts []
-  (with-open [f (io/reader "/Users/zengm/test/telecom-olt.txt")]
+  (with-open [f (io/reader "/Users/zengm/test/hw-fh-olt.txt")]
     (doseq [line (line-seq f)]
       (when (> (count line) 5)
         (if-let [[name code room category brand ip] (str/split line #"\t")]
@@ -123,7 +123,7 @@
    (log/info (format "processing sn-info [%s][%s][%d]" (:name olt) (:ip olt) retry))
    (if (> retry 0)
      (let [cards (db/olt-cards {:olt_id (:id olt)})
-           onus (card-sn-func olt (map :slot cards))]
+           onus (card-sn-func olt cards)]
        (if onus
          onus
          (recur olt (dec retry))))
@@ -161,7 +161,8 @@
       (future
         (let [sns (pmap olt-sn-info olt-parts)]
           (doseq [onu (flatten sns)]
-            (db/save-onu onu)))
+            (when onu
+              (db/save-onu onu))))
         (log/info (format "etl-olt-onus finished at [%d]..." i))))))
 
 (defn etl-onus-left
@@ -194,12 +195,12 @@
   ([olt]
    (state-info olt 3)))
 
-(defn- olt-states-all
+(defn olt-states-all
   ([olt retry]
    (log/info (format "processing olt-states-all [%s][%s][%d]"
                      (:name olt) (:ip olt) retry))
    (if (> retry 0)
-     (let [cards (map :slot (db/olt-cards {:olt_id (:id olt)}))
+     (let [cards (db/olt-cards {:olt_id (:id olt)})
            onus (db/olt-onus {:olt_id (:id olt)})
            states (if (hw-olt? olt)
                     (huawei/olt-onu-all olt cards)
@@ -267,7 +268,7 @@
       (future
         (doseq [s (map #(merge {:batch_id batch_id} %)
                        (flatten (pmap olt-states-all olt-parts)))]
-          (if (:onu_id s)
+          (if (and s (:onu_id s))
             (db/save-state s)
             (log/warn "state without onu_id" s)))
         (log/info (format "olt-states-all for batch [%s] finished at [%d]..."
