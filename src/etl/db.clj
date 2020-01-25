@@ -1,10 +1,11 @@
 (ns etl.db
-  (:require [cprop.core :refer [load-config]]
-            [clj-time.jdbc]
-            [clojure.java.jdbc :as jdbc]
-            [java-time.pre-java8 :as jt]
-            [conman.core :as conman]
-            [mount.core :refer [defstate]]))
+  (:require
+   [cprop.core :refer [load-config]]
+   [clj-time.jdbc]
+   [clojure.java.jdbc :as jdbc]
+   [java-time.pre-java8 :as jt]
+   [conman.core :as conman]
+   [mount.core :refer [defstate]]))
 
 (def conf (load-config))
 (def pool-spec

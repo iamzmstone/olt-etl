@@ -53,6 +53,7 @@ SELECT * from cards
 -- :doc retrieve all cards of a given olt
 SELECT * FROM cards
  WHERE olt_id = :olt_id
+   AND model in ('EPON', 'GPON')
 
 -- :name all-cards :? :*
 -- :doc retrieve all cards

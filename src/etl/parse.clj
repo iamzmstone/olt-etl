@@ -10,6 +10,10 @@
     (String. (.getBytes s "iso8859-1") "gbk")))
 
 ;;; functions for parsing card part
+(defn- is-uplink?
+  [type]
+  (#{"GUFQ" "HUTQ" "HUVQ"} type))
+
 (defn card-model
   "get gpon epon model from card-type"
   [type]
@@ -17,6 +21,7 @@
     (re-find #"GTG" type) "GPON"
     (re-find #"ETG" type) "EPON"
     (re-find #"ETTO" type) "EPON"
+    (is-uplink? type) "UPLINK"
     :else nil))
 
 (defn parse-card
@@ -164,5 +169,3 @@
       (= model "epon") (second (re-find #"\$\$(.+)\$\$" name-line))
       (= model "gpon") (second (re-find #"name (.+)" name-line)))
     "No-Name"))
-             
-  
