@@ -166,6 +166,6 @@
         (first (filter #(re-find #"^\s*(property description|name)" %)
                        (str/split-lines onu-cfg-section)))]
     (cond
-      (= model "epon") (second (re-find #"\$\$(.+)\$\$" name-line))
+      (= model "epon") (second (re-find #"\$\d*\$(.+)(\$\$|$)" name-line))
       (= model "gpon") (second (re-find #"name (.+)" name-line)))
     "No-Name"))
