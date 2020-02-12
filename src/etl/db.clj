@@ -41,6 +41,12 @@
       (upd-card (merge {:id (:id card-in-db)} card)))
     (add-card card)))
 
+(defn save-uplink-state
+  [uplink-state]
+  (if-let [us-in-db (get-uplink-state uplink-state)]
+    (upd-uplink-state (merge {:id (:id us-in-db)} uplink-state))
+    (add-uplink-state uplink-state)))
+  
 (defn new-pon-desc
   "Add a new pon_desc record if it doesn't exist in db"
   [desc]

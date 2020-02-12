@@ -265,3 +265,60 @@
         (log/error (format "caught exception in cutover-states for olt [%s][%s]: %s"
                            (:name olt) (:ip olt)  (.getMessage ex))))
       (finally (logout s)))))
+
+;;; code for uplink fibers
+(defn uplink-name
+  [type i]
+  (cond
+    (and (not= type "GUFQ") (< i 2)) "xgei"
+    :else "gei"))
+
+(defn uplink-state-cmd
+  [type slot i]
+  (let [name (uplink-name type i)]
+    (format "show int %s_1/%d/%d" name slot (inc i))))
+
+(defn uplink-rx-power-cmd
+  [type slot i]
+  (let [name (uplink-name type i)]
+    (format "show int optical-module-info %s_1/%d/%d" name slot (inc i))))
+
+(defn uplink-state-cmd-out
+  [session uplink-card]
+  (doall
+   (for [i (range (:port_cnt uplink-card))]
+     (parser/uplink-state
+      (agent/cmd session
+                 (uplink-state-cmd
+                  (:card_type uplink-card)
+                  (:slot uplink-card)
+                  i))))))
+
+(defn uplink-rx-power-cmd-out
+  [session uplink-card]
+  (doall
+   (for [i (range (:port_cnt uplink-card))]
+     (parser/uplink-rx-power
+      (agent/cmd session
+                 (uplink-rx-power-cmd
+                  (:card_type uplink-card)
+                  (:slot uplink-card)
+                  i))))))
+
+(defn olt-uplink-states
+  [olt uplinks]
+  (log/info (format "Processing olt-uplink-states on [%s][%s]"
+                    (:name olt) (:ip olt)))
+  (if-let [s (logon (:ip olt))]
+    (try
+      (doall (for [uplink uplinks]
+               {:olt_id (:id olt)
+                :card_id (:id uplink)
+                :uplink (format "%s:%d" "UPLINK" (:slot uplink))
+                :state (uplink-state-cmd-out s uplink)
+                :rx_power (uplink-rx-power-cmd-out s uplink)}))
+      (catch Exception ex
+        (println (format "in olt-uplink-states caught exception: %s" (.getMessage ex)))
+        (log/error (format "caught exception in cutover-states for olt [%s][%s]: %s"
+                           (:name olt) (:ip olt)  (.getMessage ex))))
+      (finally (logout s)))))

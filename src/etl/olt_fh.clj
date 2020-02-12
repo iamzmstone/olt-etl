@@ -179,3 +179,58 @@
                              (:name olt) (:ip olt)  (.getMessage ex))))
         (finally (logout s))))))
 
+(def extract-uplink-state
+  "xform to extract uplink state info"
+  (comp
+   (filter #(re-find #"Link state" %))
+   (map #(get (str/split % #"[\s:]{2,}") 1))))
+
+(defn uplink-state-cmd-out
+  [session]
+  (let [cmd-out (agent/cmd session "show uplink port all")
+        lines (str/split-lines cmd-out)]
+    (transduce extract-uplink-state conj [] lines)))
+
+(defn uplink-rx-power-cmd
+  [slot i]
+  (format "show uplink port slot %d port %d" slot (inc i)))
+
+(defn uplink-rx-power-cmd-out
+  [session card]
+  (doall
+   (for [i (range (:port_cnt card))]
+     (parser/uplink-rx-power
+      (agent/cmd session
+                 (uplink-rx-power-cmd
+                  (:slot card)
+                  i))))))
+
+
+(defn states-by-uplink
+  [states uplinks]
+  (let [s-parts (partition (:port_cnt (first uplinks)) states)]
+    (map #(hash-map :uplink-id (:id %1) :states %2) uplinks s-parts)))
+
+(defn olt-uplink-states
+  [olt uplinks]
+  (log/info (format "Processing olt-uplink-states on [%s][%s]"
+                    (:name olt) (:ip olt)))
+  (if-let [s (login (:ip olt))]
+    (let [s-new (agent/fh-device s)
+          states (uplink-state-cmd-out s-new)
+          state-uplink (states-by-uplink states uplinks)]
+      (try
+        (doall (for [uplink uplinks]
+                 (let [rxs (uplink-rx-power-cmd-out s-new uplink)]
+                   {:olt_id (:id olt)
+                    :card_id (:id uplink)
+                    :uplink (format "%s:%d" "UPLINK" (:slot uplink))
+                    :state (:states (first (filter
+                                           #(= (:id uplink) (:uplink-id %))
+                                           state-uplink)))
+                    :rx_power rxs})))
+        (catch Exception ex
+          (println (format "in olt-uplink-states caught exception: %s" (.getMessage ex)))
+          (log/error (format "caught exception in cutover-states for olt [%s][%s]: %s"
+                             (:name olt) (:ip olt)  (.getMessage ex))))
+        (finally (logout s))))))

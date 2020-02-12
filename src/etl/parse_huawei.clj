@@ -34,3 +34,11 @@
                            (str/split-lines card-section))]
     (reduce conj [] (map parse-card card-lines))))
 
+(defn uplink-rx-power
+  [cmd-out]
+  (if-let [rx-str (second (re-find #"(?m)RX power\(dBm\)\s+:\s+([\d-\.]+)" cmd-out))]
+    (let [rx (read-string rx-str)]
+      (if (number? rx)
+        rx
+        -100))
+    -404))

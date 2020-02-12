@@ -55,6 +55,12 @@ SELECT * FROM cards
  WHERE olt_id = :olt_id
    AND model in ('EPON', 'GPON')
 
+-- :name olt-uplink-card :? :*
+-- :doc retrieve all uplink cards of a given olts
+SELECT * FROM cards
+ WHERE olt_id = :olt_id
+   AND model = 'UPLINK'
+
 -- :name all-cards :? :*
 -- :doc retrieve all cards
 SELECT * FROM cards
@@ -214,3 +220,20 @@ SELECT a.*
 		   AND c.batch_id = :batch_id)
    AND a.brand = "中兴通讯股份有限公司"		   
 
+-- :name get-uplink-state :? :1
+-- :doc retrieve the uplink-state by card_id
+SELECT * from uplink_states
+ WHERE card_id = :card_id
+
+-- :name add-uplink-state :i!
+-- :doc create a new uplink-state record
+INSERT INTO uplink_states(card_id, port_state, port_rx)
+VALUES (:card_id, :port_state, :port_rx)
+
+-- :name upd-uplink-state :! :n
+-- :doc update uplink-state according to id
+UPDATE uplink_states
+   SET card_id = :card_id,
+       port_state = :port_state,
+       port_rx = :port_rx
+ WHERE id = :id

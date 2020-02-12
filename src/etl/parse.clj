@@ -169,3 +169,18 @@
       (= model "epon") (second (re-find #"\$\d*\$(.+)(\$\$|$)" name-line))
       (= model "gpon") (second (re-find #"name (.+)" name-line)))
     "No-Name"))
+
+(defn uplink-state
+  [cmd-out]
+  (second
+   (re-find #"line protocol is (\w+)," cmd-out)))
+
+(defn uplink-rx-power
+  [cmd-out]
+  (let [s-rx (second (re-find #"(?m)RxPower\s+:\s+([\d-\.]+)\s*\(dbm\)" cmd-out))]
+    (if s-rx
+      (let [rx (read-string s-rx)]
+        (if (number? rx)
+          rx
+          -404))
+      -100)))

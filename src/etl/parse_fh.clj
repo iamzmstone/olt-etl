@@ -30,3 +30,13 @@
                                   (str/split-lines section)))]
     (let [items (str/split rx-line #"\s+")]
       {:rx_power (read-string (get items 3))})))
+
+(defn uplink-rx-power
+  [cmd-out]
+  (if-let [rx-str
+           (second (re-find #"RX opticol power\s+:\s+([\d-\.]+)dBm" cmd-out))]
+    (let [rx (read-string rx-str)]
+      (if (number? rx)
+        rx
+        -100))
+    -404))

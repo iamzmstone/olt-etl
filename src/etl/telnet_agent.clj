@@ -65,18 +65,28 @@
   ([ip user pwd]
    (login-enable ip 23 user pwd)))
 
-(defn fh-onu
-  "Send 'cd onu' command and return a new client with new prompt"
-  [client]
+(defn fh-cd-cmd
+  "Send cm-cmd command and return a new client with new prompt"
+  [client cd-cmd]
   (let [s (:session client)]
-    (telnet/write s "cd onu")
+    (telnet/write s cd-cmd)
     (let [prompt (last (cs/split-lines (telnet/read-all s)))]
       {:session s :prompt prompt})))
+
+(defn fh-onu
+  [client]
+  (fh-cd-cmd client "cd onu"))
+
+(defn fh-device
+  [client]
+  (fh-cd-cmd client "cd device"))
 
 (defn hw-config
   "Send config and interface gpon 0/n command then return client with new prompt"
   [client slot model]
   (let [s (:session client)]
+    (telnet/write s "return")
+    (telnet/read-all s)
     (telnet/write s "config")
     (telnet/read-all s)
     (telnet/write s (format "interface %s 0/%d" model slot))

@@ -1,6 +1,6 @@
 (ns etl.core
   (:require
-   [etl.helper :refer [conf hw-olt? fh-olt?]]
+   [etl.helper :refer [conf hw-olt? fh-olt? db-uplink-state]]
    [etl.olt :as olt]
    [etl.olt-c300 :as c300]
    [etl.olt-huawei :as huawei]
@@ -17,7 +17,6 @@
 
 (def cores (.. Runtime getRuntime availableProcessors))
 (def conf-path (:conf-path conf))
-
 
 (defn log-test []
   (log/info "log test ..."))
@@ -56,7 +55,7 @@
           (db/save-olt {:name name :ip ip :brand "ZTE"}))))))
 
 (defn load-tele-olts []
-  (with-open [f (io/reader "/Users/zengm/test/hw-fh-olt.txt")]
+  (with-open [f (io/reader (conf :olt-txt-file))]
     (doseq [line (line-seq f)]
       (when (> (count line) 5)
         (if-let [[name code room category brand ip] (str/split line #"\t")]
@@ -329,11 +328,34 @@
   (let [onus (db/zte-onus-without-name)]
     (etl-onu-names onus)))
 
+(defn olt-uplink-states
+  [olt]
+  (let [uplinks (db/olt-uplink-card {:olt_id (:id olt)})]
+    (cond
+      (hw-olt? olt) (huawei/olt-uplink-states olt uplinks)
+      (fh-olt? olt) (fh/olt-uplink-states olt uplinks)
+      :else (c300/olt-uplink-states olt uplinks))))
+
+(defn etl-olt-uplink-states
+  "Run etl uplink states for all olts"
+  []
+  (let [part-num (+ cores 2)
+        olts (db/all-olts)]
+    (log/info "etl-olt-uplink-states start...")
+    (doseq [[i olt-parts] (map-indexed vector (partition-all part-num olts))]
+      (future
+        (let [uplinks (pmap olt-uplink-states olt-parts)]
+          (doseq [uplink (map db-uplink-state (remove nil? (flatten uplinks)))]
+            (when uplink
+              (db/save-uplink-state uplink))))
+        (log/info (format "etl-olt-uplink-states finished at [%d]..." i))))))
+
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
   (mount/start)
   (case (str/lower-case (first args))
+    "load-olts" (load-tele-olts)
     "card" (etl-card-info)
     "pon-desc" (db/batch-init-pon-desc)
     "onu" (do

@@ -77,7 +77,7 @@
     {:pon pon
      :oid (read-string (get items 0))
      :rx_power (if (number? rx) rx -404)}))
-   
+
 (defn board-out
   "Send 'display board 0/$card-no' command and get onu sn/state info"
   [client card sn?]
@@ -119,7 +119,7 @@
         lines (str/split-lines cmd-out)
         onu-items (transduce extract-optical-sec conj [] lines)
         pon (format "%d/%d" icard iport)]
-    ;;;(println "optical-info-out:" pon) 
+    (println "optical-info-out:" pon) 
     (map #(rx-power-map pon %) onu-items)))
 
 (defn olt-onu-rx-power
@@ -188,3 +188,52 @@
                            (:name olt) (:ip olt)  (.getMessage ex))))
       (finally (logout s)))))
 
+(defn uplink-model
+  [type]
+  (case type
+    "H801GICF" "giu"
+    "H801X2CS" "giu"
+    "abc"))
+
+(def extract-uplink-state
+  "xform to extract uplink state"
+  (comp
+   (filter #(re-find #"online|offline" %))
+   (map #(str/split % #"\s+"))
+   (map last)))
+
+(defn uplink-state-cmd-out
+  [client]
+  (let [cmd-out (agent/cmd client "display port state all")
+        lines (str/split-lines cmd-out)]
+    (transduce extract-uplink-state conj [] lines)))
+
+(defn uplink-rx-power-cmd-out
+  [client uplink]
+  (doall
+   (for [i (range (:port_cnt uplink))]
+     (parser/uplink-rx-power
+      (agent/cmd client (format "display port ddm-info %d" i))))))
+    
+(defn olt-uplink-states
+  [olt uplinks]
+  (log/info (format "Processing olt-uplink-states on [%s][%s]"
+                    (:name olt) (:ip olt)))
+  (if-let [s (login (:ip olt))]
+    (try
+      (doall (for [uplink uplinks]
+               (let [s-new (agent/hw-config s
+                                            (:slot uplink)
+                                            (uplink-model (:card_type uplink)))
+                     states (uplink-state-cmd-out s-new)
+                     rxs (uplink-rx-power-cmd-out s-new uplink)]
+                 {:olt_id (:id olt)
+                  :card_id (:id uplink)
+                  :uplink (format "%s:%d" "UPLINK" (:slot uplink))
+                  :state states
+                  :rx_power rxs})))
+        (catch Exception ex
+          (println (format "in olt-uplink-states caught exception: %s" (.getMessage ex)))
+          (log/error (format "caught exception in cutover-states for olt [%s][%s]: %s"
+                             (:name olt) (:ip olt)  (.getMessage ex))))
+        (finally (logout s)))))
