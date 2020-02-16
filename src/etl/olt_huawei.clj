@@ -41,10 +41,13 @@
   [items model]
   (let [auth (if (= model "GPON")
                "sn"
-               "mac")]
-    {:pon (get items 1)
-     :oid (read-string (get items 2))
-     :sn (get items 3)
+               "mac")
+        item0 (get items 0)]
+    ;;; 0/ 2/0       0   5755ZX200548710
+    ;;; 0/16/12      0   5755SN201278397
+    {:pon (if (= item0 "0/") (get items 1) (subs item0 2))
+     :oid (read-string (get items (if (= item0 "0/") 2 1)))
+     :sn (get items (if (= item0 "0/") 3 2))
      :type "HW-XXX"
      :auth auth
      :model (str/lower-case model)}))
@@ -54,7 +57,7 @@
   [model]
   (let [fld-cnt (if (= model "GPON") 4 9)]
     (comp
-     (filter #(= fld-cnt (count %)))
+     (filter #(or (= fld-cnt (count %)) (= (dec fld-cnt) (count %))))
      (map #(sn-map % model)))))
 
 (defn state-map
