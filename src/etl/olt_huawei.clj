@@ -63,14 +63,17 @@
 (defn state-map
   "transform state items to state map"
   [items]
-  {:pon (get items 1)
-   :oid (read-string (get items 2))
-   :state (stateof (get items 5))})
+  (let [item0 (get items 0)]
+    ;;; 0/ 2/0       0   5755ZX200548710
+    ;;; 0/16/12      0   5755SN201278397
+    {:pon (if (= item0 "0/") (get items 1) (subs item0 2))
+     :oid (read-string (get items (if (= item0 "0/") 2 1)))
+     :state (stateof (get items (if (= item0 "0/") 5 4)))}))
 
 (def extract-state-map
   "x-form to extract onu state map"
   (comp
-   (filter #(= 9 (count %)))
+   (filter #(or (= 9 (count %)) (= 8 (count %))))
    (map state-map)))
 
 (defn rx-power-map
