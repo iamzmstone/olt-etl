@@ -371,4 +371,5 @@
     "loginable" (do
                   (zte-olts-login-ok?)
                   (other-olts-login-ok?))
+    "uplink" (etl-olt-uplink-states)
     (println "Wrong argument...")))
