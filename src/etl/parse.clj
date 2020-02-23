@@ -173,7 +173,7 @@
 (defn uplink-state
   [cmd-out]
   (second
-   (re-find #"line protocol is (\w+)," cmd-out)))
+   (re-find #"line protocol is (\w+)" cmd-out)))
 
 (defn uplink-rx-power
   [cmd-out]
