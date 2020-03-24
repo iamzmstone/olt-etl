@@ -132,7 +132,7 @@
   ([olt]
    (olt-sn-info olt 3)))
 
-(defn- etl-onus-for-olts
+(defn etl-onus-for-olts
   "Run etl onus for given olt list: for ZTE"
   [olts]
   (let [part-num (+ cores 2)]
@@ -151,11 +151,10 @@
   []
   (etl-onus-for-olts (db/zte-olts)))
 
-(defn etl-olt-onus
-  "Run etl onus for all hw&fh olts"
-  []
-  (let [part-num (+ cores 2)
-        olts (db/not-zte-olts)]
+(defn etl-olt-onus-olts
+  "Run etl onus for given hw&fh olts"
+  [olts]
+  (let [part-num (+ cores 2)]
     (log/info "etl-olt-onus start...")
     (doseq [[i olt-parts] (map-indexed vector (partition-all part-num olts))]
       (future
@@ -164,6 +163,11 @@
             (when onu
               (db/save-onu onu))))
         (log/info (format "etl-olt-onus finished at [%d]..." i))))))
+
+(defn etl-olt-onus
+  "Run etl onus for all hw&fh olts"
+  []
+  (etl-olt-onus-olts (db/not-zte-olts)))
 
 (defn etl-onus-left
   "Run etl for olts without any onus"

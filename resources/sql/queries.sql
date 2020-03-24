@@ -28,7 +28,7 @@ SELECT * FROM olts
  WHERE brand != "中兴通讯股份有限公司"
 
 -- :name get-olt :? :1
--- :doc retrieve the otl by ip
+-- :doc retrieve the olt by ip
 SELECT * FROM olts
  WHERE ip = :ip
 
