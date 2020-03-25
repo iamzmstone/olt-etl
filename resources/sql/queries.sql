@@ -235,5 +235,6 @@ VALUES (:card_id, :port_state, :port_rx)
 UPDATE uplink_states
    SET card_id = :card_id,
        port_state = :port_state,
-       port_rx = :port_rx
+       port_rx = :port_rx,
+       upd_time = now()
  WHERE id = :id
